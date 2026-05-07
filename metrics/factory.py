@@ -13,6 +13,11 @@ class MetricsFactory:
 
             return MultiClassificationMetrics(config, logger)
 
+        if name == 'binary':
+            from metrics.binary import Binary
+
+            return Binary(config, logger)
+
         else:
             raise ValueError(
                 f"Unsupported MetricsFactory name: {name}")

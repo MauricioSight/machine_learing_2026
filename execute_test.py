@@ -1,6 +1,7 @@
 import logging
 
 from logger.base import Logger
+from modeling.training.factory import ModelingTrainingFactory
 from tracker.wandb_tracker import WandBTracker
 from utils.experiment_io import get_run_dir, save_run_artifacts
 from utils.config_handle import load_config, flatten_dict
@@ -29,7 +30,7 @@ def main(config=None, X=None, y_true=None):
     """
 
     if config is None:
-        config = load_config(run_id="cnn_MNIST_20250829_134355")
+        config = load_config(run_id="logistic_regression_ionosphere_20260507_172810")
 
     if 'run_id' not in config:
         raise ValueError("Missing run id in config")
@@ -85,15 +86,19 @@ def main(config=None, X=None, y_true=None):
     logger.debug("Initializing metrics...")
     metrics_handler = MetricsFactory().get(config, logger)
     
-    # 4. Test
-    logger.debug("Starting testing...")
-    y_true_val, y_scores, val_loss = model_inference.inference(model, X, y_true)
-    logger.info(f"Testing completed. Testing loss: {val_loss}")
+    # 3.3 Trainer
+    logger.debug("Initializing trainer...")
+    trainer = ModelingTrainingFactory().get(config, logger, device, tracker)
+
+    # 4. Execute training
+    logger.debug("Starting training...")
+    train_out, test_out = trainer.train(model, X, y_true)
 
     # 5. Get metrics
     logger.debug("Getting metrics...")
-    metrics = metrics_handler.get_overall_metrics(y_true_val, y_scores)
-    tracker.log_metrics({**metrics, 'test_loss': val_loss})
+    train_metrics = metrics_handler.get_overall_metrics([i[0] for i in train_out], [i[1] for i in train_out])
+    test_metrics = metrics_handler.get_overall_metrics([i[0] for i in test_out], [i[1] for i in test_out])
+    # tracker.log_metrics({**metrics, 'test_loss': val_loss})
 
     logger.info("Execution completed.")
 
@@ -102,12 +107,13 @@ def main(config=None, X=None, y_true=None):
 
     # 7. Save run artifacts
     logger.debug("Saving run artifacts...")
-    save_run_artifacts(run_dir, config, y_true=y_true_val, y_scores=y_scores, metrics=metrics)
+    save_run_artifacts(run_dir, {**config, 'phase': 'train'}, metrics=train_metrics)
+    save_run_artifacts(run_dir, {**config, 'phase': 'test'}, metrics=test_metrics)
     logger.info("Run artifacts saved.")
     
     logger.info("Testing completed.")
 
-    return metrics
+    return train_metrics
 
 if __name__ == "__main__":
     main()

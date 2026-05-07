@@ -7,7 +7,7 @@ class WandBTracker(BaseTracker):
         self.start_run(run_name=run_name, config=config, model=model)
 
     def start_run(self, run_name: str, config: dict, model):
-        wandb.init(project=config.get('tracker_project'), name=run_name, config=config)
+        wandb.init(project=config.get('machine_learning'), name=run_name, config=config)
         
         wandb.watch(model, log_freq=100)
 

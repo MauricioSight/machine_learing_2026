@@ -12,6 +12,11 @@ class DataPreProcessingFactory:
             from data_pre_processing.norm_pre_precessing import NormPrePrecessing
 
             return NormPrePrecessing(config, logger)
+        
+        if name == 'none':
+            from data_pre_processing.none_pre_processing import NonePreProcessing
+
+            return NonePreProcessing(config, logger)
 
         else:
             raise ValueError(

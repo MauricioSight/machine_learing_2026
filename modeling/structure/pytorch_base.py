@@ -1,3 +1,5 @@
+import os
+
 import torch
 import torch.nn as nn
 from torch import device as TorchDevice
@@ -16,19 +18,21 @@ class PytorchModelStructure(nn.Module):
         self.device = device
         self.run_id = config.get('run_id')
         self.run_dir = get_run_dir(self.run_id)
-        self.model_dir = self.run_dir / "model.pt"
+        self.model_dir = f'{self.run_dir}/model.pt'
 
     def forward(self, x):
         raise NotImplementedError("Each model must implement the forward pass.")
     
 
-    def save_model_state_dict(self):
-        torch.save(self.state_dict(), self.model_dir)
+    def save_model_state_dict(self, fold_id=None):
+        path = self.model_dir if fold_id is None else self.model_dir.replace('.pt', f'_{fold_id}.pt')
+        torch.save(self.state_dict(), path)
 
 
-    def load_model_state_dict(self):
-        if self.model_dir.exists():
-            self.load_state_dict(torch.load(self.model_dir, map_location=self.device))
+    def load_model_state_dict(self, fold_id=None):
+        path = self.model_dir if fold_id is None else self.model_dir.replace('.pt', f'_{fold_id}.pt')
+        if os.path.exists(path):
+            self.load_state_dict(torch.load(path, map_location=self.device))
 
     def compile(self):
         self = self.to(device=self.device)

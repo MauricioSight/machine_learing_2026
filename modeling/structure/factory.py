@@ -14,6 +14,11 @@ class ModelingStructureFactory:
             from modeling.structure.mlp import MLP
 
             return MLP(config, logger, device)
+        
+        if name == 'logistic_regression':
+            from modeling.structure.logistic_regression import LogisticRegressionModel
+
+            return LogisticRegressionModel(config, logger, device)
 
         else:
             raise ValueError(

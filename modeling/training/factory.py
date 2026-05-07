@@ -15,6 +15,11 @@ class ModelingTrainingFactory:
             from modeling.training.dnn_train import DNNTrain
 
             return DNNTrain(config, logger, device, tracker)
+        
+        if name == 'stratified_k_fold':
+            from modeling.training.stratified_k_fold_train import StratifiedKFoldTrain
+
+            return StratifiedKFoldTrain(config, logger, device, tracker)
 
         else:
             raise ValueError(

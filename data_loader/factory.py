@@ -12,6 +12,11 @@ class DataLoaderFactory:
             from data_loader.MNIST_loader import MNISTLoader
 
             return MNISTLoader(config, logger)
+        
+        if name == 'ionosphere':
+            from data_loader.ionosphere_loader import IonosphereLoader
+
+            return IonosphereLoader(config, logger)
 
         else:
             raise ValueError(

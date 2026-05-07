@@ -1,4 +1,5 @@
 import logging
+import os
 
 import numpy as np
 from sklearn.model_selection import train_test_split
@@ -33,7 +34,7 @@ def main(config=None, X=None, y_true=None):
     """
 
     if config is None:
-        config = load_config(default_file_name="mlp")
+        config = load_config(default_file_name="logistic_regression")
 
     if 'run_id' not in config:
         run_id = get_run_id(config, [config['modeling']['structure']['name'], config['data_loader']['name']])
@@ -93,23 +94,15 @@ def main(config=None, X=None, y_true=None):
     logger.debug("Initializing metrics...")
     metrics_handler = MetricsFactory().get(config, logger)
 
-    # 3.4 Train validation split
-    train_val_idx, test_idx = train_test_split(np.arange(X.shape[0]), train_size=0.8, random_state=DEFAULT_SEED, shuffle=True)
-
     # 4. Execute training
     logger.debug("Starting training...")
-    train_loss, train_val_loss = trainer.train(model, X[train_val_idx], y_true.iloc[train_val_idx])
-    logger.info(f"Training completed. Train loss: {train_loss}, Training validation loss: {train_val_loss}")
-    
-    # 5. Validate
-    logger.debug("Starting validating...")
-    y_true_val, y_scores, val_loss = model_inference.inference(model, X[test_idx], y_true.iloc[test_idx])
-    logger.info(f"Validating completed. Validation loss: {val_loss}")
+    fold_train_losses, fold_val_losses = trainer.train(model, X, y_true)
 
     # 6. Get metrics
     logger.debug("Getting metrics...")
-    metrics = metrics_handler.get_overall_metrics(y_true_val, y_scores)
-    tracker.log_metrics({**metrics, 'test_loss': val_loss})
+    train_metrics = metrics_handler.get_overall_metrics([i[0] for i in fold_train_losses], [i[1] for i in fold_train_losses])
+    val_metrics = metrics_handler.get_overall_metrics([i[0] for i in fold_val_losses], [i[1] for i in fold_val_losses])
+    # tracker.log_metrics({**metrics, 'test_loss': val_loss})
 
     logger.info("Execution completed.")
 
@@ -118,12 +111,13 @@ def main(config=None, X=None, y_true=None):
 
     # 8. Save run artifacts
     logger.debug("Saving run artifacts...")
-    save_run_artifacts(run_dir, config, y_true=y_true_val, y_scores=y_scores, metrics=metrics)
+    save_run_artifacts(run_dir, {**config, 'phase': 'train_tunning'}, metrics=train_metrics)
+    save_run_artifacts(run_dir, {**config, 'phase': 'val_tunning'}, metrics=val_metrics)
     logger.info("Run artifacts saved.")
     
     logger.info("Train and validation completed.")
 
-    return metrics
+    return val_metrics
 
 if __name__ == "__main__":
     main()
