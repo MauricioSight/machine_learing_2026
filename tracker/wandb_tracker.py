@@ -1,15 +1,19 @@
 import wandb
 from tracker.base_tracker import BaseTracker
 
+
 class WandBTracker(BaseTracker):
     def __init__(self, run_name: str, config: dict, model):
         super().__init__()
         self.start_run(run_name=run_name, config=config, model=model)
 
     def start_run(self, run_name: str, config: dict, model):
-        wandb.init(project=config.get('machine_learning'), name=run_name, config=config)
-        
-        wandb.watch(model, log_freq=100)
+        wandb.init(project=config.get("machine_learning"), name=run_name, config=config)
+
+        try:
+            wandb.watch(model, log_freq=100)
+        except:
+            pass
 
     def log_metrics(self, metrics: dict, step: int = None):
         wandb.log(metrics, step=step)

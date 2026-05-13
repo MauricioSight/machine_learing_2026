@@ -1,0 +1,16 @@
+data_loader:
+  name: ionosphere
+
+pre_processing:
+  name: none
+
+modeling:
+  structure:
+    name: bayes_class
+  
+  training:
+    name: stratified_k_fold
+    n_repeats: 1
+
+metrics:
+  name: bayes_classifier_metrics

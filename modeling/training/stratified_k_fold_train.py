@@ -1,191 +1,172 @@
+from logging import Logger
+
 import numpy as np
 import pandas as pd
-import torch
-
-from torch.utils.data import DataLoader
 
 from sklearn.model_selection import RepeatedStratifiedKFold, StratifiedKFold
+import torch
+import pickle
 
-from modeling.training.early_stopping import EarlyStopping
-from modeling.training.pytorch_base import PytorchTrainingAlgorithm
-from modeling.structure.pytorch_base import PytorchModelStructure
-
-from utils.create_loader import create_loader
-from utils.criterion import get_criterion
+from utils.experiment_io import get_run_dir
 from utils.seed_all import DEFAULT_SEED
 
 
-class StratifiedKFoldTrain(PytorchTrainingAlgorithm):
-    def fit(
-        self,
-        model: PytorchModelStructure,
-        train_loader: DataLoader,
-        epoch: int,
-        fold_id: int
-    ) -> float:
+class StratifiedKFoldTrain:
 
-        model.train()
-        train_loss = 0
-        y_true = []
-        y_prob = []
+    def __init__(self, config: dict, logger: Logger):
+        self.config = config
+        self.logger = logger
 
-        for data, target, _ in train_loader:
-            self.optimizer.zero_grad()
-            logits = model.forward(data)
-            loss = self.criterion(logits, target)
-            loss.backward()
+        self.run_dir = get_run_dir(self.config.get("run_id"))
 
-            train_loss += loss.item()
+    def fit(self, model, X_train, y_train):
+        """
+        Ajusta o modelo Bayesiano.
+        """
 
-            self.optimizer.step()
+        model.fit(X_train, y_train)
 
-            probs = torch.softmax(logits, dim=1)
-            y_prob.extend(probs.cpu().detach().numpy())
-            y_true.extend(target.cpu().numpy())
+    def test(self, model, X_val, y_val):
+        """
+        Executa inferência.
+        """
 
-        train_loss = train_loss / len(train_loader)
+        y_pred = model.predict_proba(X_val)
 
-        self.logger.info(f'fold_id: {fold_id} \tEpoch: {epoch} \tTraining loss: {train_loss:.6f}')
+        return (y_val, y_pred)
 
-        return (
-            np.array(y_true),
-            np.array(y_prob),
-            train_loss
-        )
-
-    def validate(
-        self,
-        model: PytorchModelStructure,
-        val_loader: DataLoader,
-        epoch: int,
-        fold_id: int
-    ) -> float:
-
-        model.eval()
-        val_loss = 0
-        y_true = []
-        y_prob = []
-
-        with torch.no_grad():
-            for data, target, _ in val_loader:
-                logits = model.forward(data)
-                loss = self.criterion(logits, target)
-                val_loss += loss.item()
-
-                probs = torch.softmax(logits, dim=1)
-                y_prob.extend(probs.cpu().numpy())
-                y_true.extend(target.cpu().numpy())
-
-        val_loss = val_loss / len(val_loader)
-        self.logger.info(f'fold_id: {fold_id} \tEpoch: {epoch} \tValidation loss: {val_loss:.6f}')
-
-        return (
-            np.array(y_true),
-            np.array(y_prob),
-            val_loss
-        )
-
-    def __create_loaders(
-        self,
-        X,
-        y,
-        train_idx,
-        val_idx
+    def train_epoch(
+        self, fold_id, X: np.ndarray, y: pd.DataFrame, train_idx, test_idx, model
     ):
 
-        data = [
-            [X[i], y.iloc[i]["label"], i]
-            for i in range(len(X))
-        ]
-
-        g = torch.Generator()
-        g.manual_seed(DEFAULT_SEED)
-
-        batch_size = (
-            self.config
-            .get("modeling", {})
-            .get("training", {})
-            .get("batch_size", 32)
-        )
-
-        train_loader = create_loader(
-            data,
-            train_idx,
-            batch_size,
-            self.device,
-            g
-        )
-
-        val_loader = create_loader(
-            data,
-            val_idx,
-            batch_size,
-            self.device,
-            g
-        )
-
-        return train_loader, val_loader
-    
-    def train_epoch(self, fold_id, X, y, train_idx, test_idx, model, num_epochs):
         self.logger.info(f"Starting Fold {fold_id + 1}")
 
-        train_loader, val_loader = self.__create_loaders(X, y, train_idx, test_idx)
+        # ------------------------------------------------------
+        # split
+        # ------------------------------------------------------
 
-        # reinicializa pesos
+        X_train = X[train_idx]
+        X_test = X[test_idx]
+
+        y_train = y.iloc[train_idx]["label"].values
+
+        y_test = y.iloc[test_idx]["label"].values
+
+        # ------------------------------------------------------
+        # reset
+        # ------------------------------------------------------
+
         model.reset_weights()
 
-        for epoch in range(num_epochs):
-            train_out = self.fit(model, train_loader, epoch, fold_id)
-            val_out = self.validate(model, val_loader, epoch, fold_id)
+        # ------------------------------------------------------
+        # fit
+        # ------------------------------------------------------
 
-            # self.tracker.log_metrics({"train_loss": train_loss, "val_loss": val_loss}, step=epoch)
-            model.save_model_state_dict(fold_id=fold_id)
+        self.fit(model, X_train, y_train)
+
+        # ------------------------------------------------------
+        # validation
+        # ------------------------------------------------------
+
+        train_out = self.test(model, X_train, y_train)
+        val_out = self.test(model, X_test, y_test)
 
         return train_out, val_out
 
-    def train(
+    def save_best_model(
         self,
-        model: PytorchModelStructure,
-        X: np.ndarray,
-        y: pd.DataFrame
+        phase,
+        metrics_handler,
+        best_model_loss,
+        model,
+        train_idx,
+        test_idx,
+        train_out,
+        test_out,
     ):
+        metric = metrics_handler.get_overall_metrics(
+            [train_out[0]], [train_out[1]], verbose=False
+        )["error_rate"]["mean"]
+        if metric < best_model_loss:
+            self.logger.info("Saving model...")
+            best_model_loss = metric
+            model.save()
+            torch.save(
+                {
+                    "train_y_true": train_out[0],
+                    "train_y_scores": train_out[1],
+                    "test_y_true": test_out[0],
+                    "test_y_scores": test_out[1],
+                    "train_idx": train_idx,
+                    "test_idx": test_idx,
+                },
+                self.run_dir / f"{phase}_predictions.pt",
+                pickle_protocol=pickle.HIGHEST_PROTOCOL,
+            )
 
-        criterion_name  =   self.config.get('modeling', {}).get('training', {}).get('criterion')
-        reduction       =   self.config.get('modeling', {}).get('training', {}).get('reduction', 'mean')
-        learning_rate   =   self.config.get('modeling', {}).get('training', {}).get('learning_rate')
-        num_epochs      =   self.config.get('modeling', {}).get('training', {}).get('num_epochs')
-
-
-        self.optimizer = torch.optim.Adam(model.parameters(), lr=float(learning_rate))
-        self.criterion = get_criterion(criterion_name, reduction=reduction)
+    def train(self, model, X: np.ndarray, y: pd.DataFrame, metrics_handler):
+        n_repeats = (
+            self.config.get("modeling", {}).get("training", {}).get("n_repeats", 300)
+        )
+        phase = self.config.get("phase")
+        has_tunning = len(self.config.get("modeling", {}).get("structure")) > 1
+        best_model_loss = float("inf")
 
         y_labels = y["label"].values
 
-        splitter = RepeatedStratifiedKFold(n_splits=10, n_repeats=1, random_state=DEFAULT_SEED)
+        splitter = RepeatedStratifiedKFold(
+            n_splits=10, n_repeats=n_repeats, random_state=DEFAULT_SEED
+        )
 
-        fold_train_losses = []
-        fold_val_losses = []
+        fold_train_outs = []
+        fold_test_outs = []
+
         for fold_id, (train_idx, test_idx) in enumerate(splitter.split(X, y_labels)):
-            if self.config.get('phase') == 'train':
+            if phase == "tunning" and has_tunning:
                 inner_cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
                 X_train_outer = X[train_idx]
                 y_train_outer = y.iloc[train_idx].reset_index(drop=True)
 
-                for inner_fold_id, (inner_train_idx, inner_val_idx) in enumerate(inner_cv.split(X_train_outer, y_train_outer['label'])):
-                    train_loss, fold_val_loss = self.train_epoch(inner_fold_id, X, y, inner_train_idx, inner_val_idx, model, num_epochs)
-                    fold_train_losses.append(train_loss)
-                    fold_val_losses.append(fold_val_loss)
+                for inner_fold_id, (inner_train_idx, inner_test_idx) in enumerate(
+                    inner_cv.split(X_train_outer, y_train_outer["label"])
+                ):
+                    train_out, test_out = self.train_epoch(
+                        inner_fold_id, X, y, inner_train_idx, inner_test_idx, model
+                    )
 
-                return fold_train_losses, fold_val_losses
-            
-            train_loss, fold_val_loss = self.train_epoch(fold_id, X, y, train_idx, test_idx, model, num_epochs)
-            fold_train_losses.append(train_loss)
-            fold_val_losses.append(fold_val_loss)
+                    self.save_best_model(
+                        phase,
+                        metrics_handler,
+                        best_model_loss,
+                        model,
+                        inner_train_idx,
+                        inner_test_idx,
+                        train_out,
+                        test_out,
+                    )
 
-        return fold_train_losses, fold_val_losses
+                    fold_train_outs.append(train_out)
+                    fold_test_outs.append(test_out)
 
-    @staticmethod
-    def reset_weights(m):
-        if hasattr(m, "reset_parameters"):
-            m.reset_parameters()
+                return fold_train_outs, fold_test_outs
+
+            train_out, test_out = self.train_epoch(
+                fold_id, X, y, train_idx, test_idx, model
+            )
+
+            self.save_best_model(
+                phase,
+                metrics_handler,
+                best_model_loss,
+                model,
+                train_idx,
+                test_idx,
+                train_out,
+                test_out,
+            )
+
+            fold_train_outs.append(train_out)
+            fold_test_outs.append(test_out)
+
+        return fold_train_outs, fold_test_outs

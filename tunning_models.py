@@ -1,9 +1,8 @@
 import logging
 
 from logger.base import Logger
-from modeling.training.factory import ModelingTrainingFactory
 from tracker.wandb_tracker import WandBTracker
-from utils.experiment_io import get_run_dir, save_run_artifacts
+from utils.experiment_io import get_run_id, get_run_dir, save_run_artifacts
 from utils.config_handle import load_config, flatten_dict
 from utils.get_device import get_device
 from utils.seed_all import seed_all
@@ -12,13 +11,14 @@ from data_loader.factory import DataLoaderFactory
 from data_pre_processing.factory import DataPreProcessingFactory
 
 from modeling.structure.factory import ModelingStructureFactory
-from modeling.inference.factory import ModelingInferenceFactory
+from modeling.training.factory import ModelingTrainingFactory
 
 from metrics.factory import MetricsFactory
 
+
 def main(config=None, X=None, y_true=None):
     """
-    Perform testing phase
+    Perform train phase
 
     args:
         config: optional if what to use specific config
@@ -30,23 +30,30 @@ def main(config=None, X=None, y_true=None):
     """
 
     if config is None:
-        config = load_config(run_id="logistic_regression_ionosphere_20260507_172810")
+        config = load_config(default_file_name="bayes_class")
 
-    if 'run_id' not in config:
-        raise ValueError("Missing run id in config")
-    
-    config['phase'] = 'test' # persist testing phase
-    run_id = config['run_id']
+    if "run_id" not in config:
+        run_id = get_run_id(
+            config,
+            [config["modeling"]["structure"]["name"], config["data_loader"]["name"]],
+        )
+        config["run_id"] = run_id
+
+    config["phase"] = "tunning"  # persist phase
+    run_id = config["run_id"]
     run_dir = get_run_dir(run_id)
 
     save_run_artifacts(run_dir, config)
 
     # Setup logger
-    logger = Logger(name="testing", log_file=f"{run_dir}/test_output.log", 
-                    level=logging.DEBUG if 'debug' in config and config['debug'] else logging.INFO)
+    logger = Logger(
+        name="train_validation",
+        log_file=f"{run_dir}/{config["phase"]}_output.log",
+        level=logging.DEBUG if "debug" in config and config["debug"] else logging.INFO,
+    )
 
     # log run id
-    logger.info("Initiating testing...")
+    logger.info("Initiating training and validation...")
     logger.info(f"[ RUN ID: {run_id} ]")
 
     seed = 0
@@ -79,41 +86,46 @@ def main(config=None, X=None, y_true=None):
     flat_config = flatten_dict(config)
     tracker = WandBTracker(config=flat_config, run_name=run_id, model=model)
 
-    # 3.3 Inference
-    logger.debug("Initializing inference...")
-    model_inference = ModelingInferenceFactory().get(config, logger, device)
-
-    logger.debug("Initializing metrics...")
-    metrics_handler = MetricsFactory().get(config, logger)
-    
     # 3.3 Trainer
     logger.debug("Initializing trainer...")
     trainer = ModelingTrainingFactory().get(config, logger, device, tracker)
 
+    logger.debug("Initializing metrics...")
+    metrics_handler = MetricsFactory().get(config, logger, device)
+
     # 4. Execute training
     logger.debug("Starting training...")
-    train_out, test_out = trainer.train(model, X, y_true)
+    fold_train_losses, fold_val_losses = trainer.train(
+        model, X, y_true, metrics_handler
+    )
 
-    # 5. Get metrics
+    # 6. Get metrics
     logger.debug("Getting metrics...")
-    train_metrics = metrics_handler.get_overall_metrics([i[0] for i in train_out], [i[1] for i in train_out])
-    test_metrics = metrics_handler.get_overall_metrics([i[0] for i in test_out], [i[1] for i in test_out])
+    train_metrics = metrics_handler.get_overall_metrics(
+        [i[0] for i in fold_train_losses], [i[1] for i in fold_train_losses]
+    )
+    val_metrics = metrics_handler.get_overall_metrics(
+        [i[0] for i in fold_val_losses], [i[1] for i in fold_val_losses]
+    )
     # tracker.log_metrics({**metrics, 'test_loss': val_loss})
 
     logger.info("Execution completed.")
 
-    # 6. Finish the tracker
+    # 7. Finish the tracker
     tracker.finish()
 
-    # 7. Save run artifacts
+    # 8. Save run artifacts
     logger.debug("Saving run artifacts...")
-    save_run_artifacts(run_dir, {**config, 'phase': 'train'}, metrics=train_metrics)
-    save_run_artifacts(run_dir, {**config, 'phase': 'test'}, metrics=test_metrics)
+    save_run_artifacts(
+        run_dir, {**config, "phase": "tunning_train"}, metrics=train_metrics
+    )
+    save_run_artifacts(run_dir, {**config, "phase": "tunning_val"}, metrics=val_metrics)
     logger.info("Run artifacts saved.")
-    
-    logger.info("Testing completed.")
 
-    return train_metrics
+    logger.info("Train and validation completed.")
+
+    return val_metrics
+
 
 if __name__ == "__main__":
     main()

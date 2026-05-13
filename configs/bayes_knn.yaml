@@ -1,0 +1,18 @@
+data_loader:
+  name: ionosphere
+
+pre_processing:
+  name: none
+
+modeling:
+  structure:
+    name: bayes_class_knn
+    k: 5
+    dist_metric: euclidean # [euclidean, city_block, chebyshev]
+  
+  training:
+    name: stratified_k_fold
+    n_repeats: 1
+
+metrics:
+  name: bayes_classifier_metrics

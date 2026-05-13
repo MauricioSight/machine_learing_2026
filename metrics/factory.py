@@ -1,23 +1,23 @@
-from metrics.base import InferenceMetrics
 from logger.base import Logger
+
 
 class MetricsFactory:
     """
     Base class for metrics factory.
     """
-    def get(self, config: dict, logger: Logger) -> InferenceMetrics:
-        name = config.get('metrics', {}).get('name')
 
-        if name == 'multi_class':
-            from metrics.multi_class import MultiClassificationMetrics
+    def get(self, config: dict, logger: Logger, device):
+        name = config.get("metrics", {}).get("name")
 
-            return MultiClassificationMetrics(config, logger)
+        if name == "logistic_classifier_metrics":
+            from metrics.logistic_classifier_metrics import LogisticClassifierMetrics
 
-        if name == 'binary':
-            from metrics.binary import Binary
+            return LogisticClassifierMetrics(config, logger, device)
 
-            return Binary(config, logger)
+        if name == "bayes_classifier_metrics":
+            from metrics.bayes_classifier_metrics import BayesClassifierMetrics
+
+            return BayesClassifierMetrics(config, logger, device)
 
         else:
-            raise ValueError(
-                f"Unsupported MetricsFactory name: {name}")
+            raise ValueError(f"Unsupported MetricsFactory name: {name}")
