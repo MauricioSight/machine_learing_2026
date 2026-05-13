@@ -1,3 +1,6 @@
+tracker:
+  project_name: aprendizagem_maquina_projeto
+
 data_loader:
   name: ionosphere
 
@@ -12,6 +15,7 @@ modeling:
   
   training:
     name: stratified_k_fold
+    target_metric: [error_rate, mean]
     n_repeats: 1
     learning_rate: 0.001
     num_epochs: 10

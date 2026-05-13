@@ -30,7 +30,7 @@ def main(config=None, X=None, y_true=None):
     """
 
     if config is None:
-        config = load_config(default_file_name="bayes_class")
+        config = load_config(default_file_name="logistic_regression")
 
     if "run_id" not in config:
         run_id = get_run_id(
@@ -39,11 +39,13 @@ def main(config=None, X=None, y_true=None):
         )
         config["run_id"] = run_id
 
+    tunning_automated_id = config.get("tunning_automated_id", None)
     config["phase"] = "tunning"  # persist phase
     run_id = config["run_id"]
     run_dir = get_run_dir(run_id)
 
-    save_run_artifacts(run_dir, config)
+    if tunning_automated_id is not None:
+        save_run_artifacts(run_dir, config)
 
     # Setup logger
     logger = Logger(
@@ -76,15 +78,15 @@ def main(config=None, X=None, y_true=None):
     device = get_device()
     logger.info(f"Using device: {device}")
 
-    # 3.1 Model
-    logger.debug("Initializing model...")
-    model = ModelingStructureFactory().get(config, logger, device)
-    model.compile()
-
-    # 3.2 Tracker
+    # 3.1 Tracker
     logger.debug("Initializing tracker...")
     flat_config = flatten_dict(config)
-    tracker = WandBTracker(config=flat_config, run_name=run_id, model=model)
+    tracker = WandBTracker(config=flat_config)
+
+    # 3.2 Model
+    logger.debug("Initializing model...")
+    model = ModelingStructureFactory().get(config, logger, device, tracker)
+    model.compile()
 
     # 3.3 Trainer
     logger.debug("Initializing trainer...")
@@ -99,7 +101,7 @@ def main(config=None, X=None, y_true=None):
         model, X, y_true, metrics_handler
     )
 
-    # 6. Get metrics
+    # 5. Get metrics
     logger.debug("Getting metrics...")
     train_metrics = metrics_handler.get_overall_metrics(
         [i[0] for i in fold_train_losses], [i[1] for i in fold_train_losses]
@@ -107,20 +109,19 @@ def main(config=None, X=None, y_true=None):
     val_metrics = metrics_handler.get_overall_metrics(
         [i[0] for i in fold_val_losses], [i[1] for i in fold_val_losses]
     )
-    # tracker.log_metrics({**metrics, 'test_loss': val_loss})
 
     logger.info("Execution completed.")
 
-    # 7. Finish the tracker
-    tracker.finish()
-
-    # 8. Save run artifacts
-    logger.debug("Saving run artifacts...")
-    save_run_artifacts(
-        run_dir, {**config, "phase": "tunning_train"}, metrics=train_metrics
-    )
-    save_run_artifacts(run_dir, {**config, "phase": "tunning_val"}, metrics=val_metrics)
-    logger.info("Run artifacts saved.")
+    # 7. Save run artifacts
+    if tunning_automated_id is not None:
+        logger.debug("Saving run artifacts...")
+        save_run_artifacts(
+            run_dir, {**config, "phase": "tunning_train"}, metrics=train_metrics
+        )
+        save_run_artifacts(
+            run_dir, {**config, "phase": "tunning_val"}, metrics=val_metrics
+        )
+        logger.info("Run artifacts saved.")
 
     logger.info("Train and validation completed.")
 

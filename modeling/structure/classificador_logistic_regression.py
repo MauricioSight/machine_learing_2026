@@ -5,14 +5,16 @@ import numpy as np
 from torch import device as TorchDevice
 from torch.utils.data import TensorDataset, DataLoader
 
+from tracker.base_tracker import BaseTracker
 from utils.experiment_io import get_run_dir
 
 
 class LogisticRegressionClassifier(nn.Module):
-    def __init__(self, config, logger, device: TorchDevice):
+    def __init__(self, config, logger, device: TorchDevice, tracker: BaseTracker):
         super().__init__()
         self.config = config
         self.logger = logger
+        self.tracker = tracker
         self.device = device
 
         self.phase = self.config.get("phase")
@@ -119,6 +121,8 @@ class LogisticRegressionClassifier(nn.Module):
                 self.optimizer.step()
 
                 epoch_loss += loss.item()
+
+                self.tracker.log_metrics({"epoch": epoch, "loss": loss.item()})
 
             self.logger.info(
                 f"Epoch [{epoch+1}/{self.num_epochs}] "

@@ -1,6 +1,7 @@
 from torch import device as TorchDevice
 
 from logger.base import Logger
+from tracker.base_tracker import BaseTracker
 
 
 class ModelingStructureFactory:
@@ -8,7 +9,9 @@ class ModelingStructureFactory:
     Base class for model structure factory.
     """
 
-    def get(self, config: dict, logger: Logger, device: TorchDevice):
+    def get(
+        self, config: dict, logger: Logger, device: TorchDevice, tracker: BaseTracker
+    ):
         name = config.get("modeling", {}).get("structure", {}).get("name")
 
         if name == "logistic_regression":
@@ -16,7 +19,7 @@ class ModelingStructureFactory:
                 LogisticRegressionClassifier,
             )
 
-            return LogisticRegressionClassifier(config, logger, device)
+            return LogisticRegressionClassifier(config, logger, device, tracker)
 
         if name == "bayes_class":
             from modeling.structure.classificador_bayesiano import (

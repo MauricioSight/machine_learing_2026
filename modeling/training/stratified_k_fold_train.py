@@ -3,19 +3,26 @@ from logging import Logger
 import numpy as np
 import pandas as pd
 
+from torch import device as TorchDevice
 from sklearn.model_selection import RepeatedStratifiedKFold, StratifiedKFold
 import torch
 import pickle
 
+from tracker.base_tracker import BaseTracker
+from utils.config_handle import flatten_dict
 from utils.experiment_io import get_run_dir
 from utils.seed_all import DEFAULT_SEED
 
 
 class StratifiedKFoldTrain:
 
-    def __init__(self, config: dict, logger: Logger):
+    def __init__(
+        self, config: dict, logger: Logger, device: TorchDevice, tracker: BaseTracker
+    ):
         self.config = config
         self.logger = logger
+        self.device = device
+        self.tracker = tracker
 
         self.run_dir = get_run_dir(self.config.get("run_id"))
 
@@ -75,6 +82,7 @@ class StratifiedKFoldTrain:
 
     def save_best_model(
         self,
+        fold_id,
         phase,
         metrics_handler,
         best_model_loss,
@@ -84,25 +92,35 @@ class StratifiedKFoldTrain:
         train_out,
         test_out,
     ):
-        metric = metrics_handler.get_overall_metrics(
+        tunning_automated_id = self.config.get("tunning_automated_id", None)
+        target_metric = (
+            self.config.get("modeling", {}).get("training", {}).get("target_metric")
+        )
+
+        metrics = metrics_handler.get_overall_metrics(
             [train_out[0]], [train_out[1]], verbose=False
-        )["error_rate"]["mean"]
-        if metric < best_model_loss:
-            self.logger.info("Saving model...")
-            best_model_loss = metric
-            model.save()
-            torch.save(
-                {
-                    "train_y_true": train_out[0],
-                    "train_y_scores": train_out[1],
-                    "test_y_true": test_out[0],
-                    "test_y_scores": test_out[1],
-                    "train_idx": train_idx,
-                    "test_idx": test_idx,
-                },
-                self.run_dir / f"{phase}_predictions.pt",
-                pickle_protocol=pickle.HIGHEST_PROTOCOL,
-            )
+        )
+
+        if tunning_automated_id is None:
+            target_metric = metrics[target_metric[0]][target_metric[1]]
+            if target_metric < best_model_loss:
+                self.logger.info("Saving model...")
+                best_model_loss = target_metric
+                model.save()
+                torch.save(
+                    {
+                        "train_y_true": train_out[0],
+                        "train_y_scores": train_out[1],
+                        "test_y_true": test_out[0],
+                        "test_y_scores": test_out[1],
+                        "train_idx": train_idx,
+                        "test_idx": test_idx,
+                    },
+                    self.run_dir / f"{phase}_predictions.pt",
+                    pickle_protocol=pickle.HIGHEST_PROTOCOL,
+                )
+
+        return metrics
 
     def train(self, model, X: np.ndarray, y: pd.DataFrame, metrics_handler):
         n_repeats = (
@@ -131,11 +149,14 @@ class StratifiedKFoldTrain:
                 for inner_fold_id, (inner_train_idx, inner_test_idx) in enumerate(
                     inner_cv.split(X_train_outer, y_train_outer["label"])
                 ):
+                    self.tracker.start_run(model, fold_id=inner_fold_id)
+
                     train_out, test_out = self.train_epoch(
                         inner_fold_id, X, y, inner_train_idx, inner_test_idx, model
                     )
 
-                    self.save_best_model(
+                    metrics = self.save_best_model(
+                        fold_id,
                         phase,
                         metrics_handler,
                         best_model_loss,
@@ -149,13 +170,21 @@ class StratifiedKFoldTrain:
                     fold_train_outs.append(train_out)
                     fold_test_outs.append(test_out)
 
+                    self.tracker.log_metrics(
+                        {"fold_id": fold_id, **flatten_dict(metrics)}
+                    )
+                    self.tracker.finish()
+
                 return fold_train_outs, fold_test_outs
+
+            self.tracker.start_run(model, fold_id=inner_fold_id)
 
             train_out, test_out = self.train_epoch(
                 fold_id, X, y, train_idx, test_idx, model
             )
 
-            self.save_best_model(
+            metrics = self.save_best_model(
+                fold_id,
                 phase,
                 metrics_handler,
                 best_model_loss,
@@ -168,5 +197,8 @@ class StratifiedKFoldTrain:
 
             fold_train_outs.append(train_out)
             fold_test_outs.append(test_out)
+
+            self.tracker.log_metrics({"fold_id": fold_id, **flatten_dict(metrics)})
+            self.tracker.finish()
 
         return fold_train_outs, fold_test_outs

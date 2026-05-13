@@ -3,12 +3,21 @@ from tracker.base_tracker import BaseTracker
 
 
 class WandBTracker(BaseTracker):
-    def __init__(self, run_name: str, config: dict, model):
+    def __init__(self, config: dict):
         super().__init__()
-        self.start_run(run_name=run_name, config=config, model=model)
+        self.config = config
 
-    def start_run(self, run_name: str, config: dict, model):
-        wandb.init(project=config.get("machine_learning"), name=run_name, config=config)
+    def start_run(self, model, fold_id: int = None):
+        project = self.config.get("tracker", {}).get("project_name")
+        group = self.config.get("run_id")
+        run_name = f"{group}-fold_{fold_id}"
+
+        wandb.init(
+            project=project,
+            group=group,
+            name=run_name,
+            config=self.config,
+        )
 
         try:
             wandb.watch(model, log_freq=100)

@@ -1,5 +1,5 @@
 class BaseTracker:
-    def start_run(self, run_name: str, config: dict):
+    def start_run(self, model, fold_id: int = None):
         pass
 
     def log_metrics(self, metrics: dict, step: int):

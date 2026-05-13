@@ -4,7 +4,7 @@ import logging
 from logger.base import Logger
 from optimizer.factory import OptimizerFactory
 from utils.experiment_io import get_run_id, get_run_dir, get_tune_id, save_run_tune
-from tunning_models import main as execute_train_validation_main
+from tunning_models import main as tunning_models
 from utils.config_handle import load_config
 
 
@@ -46,13 +46,14 @@ def main(tune_run_id: str = None, config_file="tune-mlp"):
 
     run_id = tune_config["run_id"]
     run_dir = get_run_dir(run_id)
+    train_config["tunning_automated_id"] = run_id
 
     save_run_tune(run_dir, tune_config=tune_config, train_config=train_config)
 
     # Setup logger
     tune_logger = Logger(
         name="tune",
-        log_file=f"{run_dir}/tune_output.log",
+        log_file=f"{run_dir}/tunning_automated_output.log",
         level=(
             logging.DEBUG
             if "debug" in tune_config and tune_config["debug"]
@@ -85,7 +86,7 @@ def main(tune_run_id: str = None, config_file="tune-mlp"):
         )
         updated_config["run_id"] = experiment_id
 
-        metrics = execute_train_validation_main(config=updated_config)
+        metrics = tunning_models(config=updated_config)
 
         tune_logger.info(f"Objective metric: {metrics[objective_metric]}")
         return metrics[objective_metric]
