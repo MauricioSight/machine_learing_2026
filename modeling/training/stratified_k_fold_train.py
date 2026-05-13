@@ -97,12 +97,12 @@ class StratifiedKFoldTrain:
             self.config.get("modeling", {}).get("training", {}).get("target_metric")
         )
 
-        metrics = metrics_handler.get_overall_metrics(
-            [train_out[0]], [train_out[1]], verbose=False
+        metrics = metrics_handler.get_run_metrics(
+            train_out[0], train_out[1], verbose=False
         )
 
         if tunning_automated_id is None:
-            target_metric = metrics[target_metric[0]][target_metric[1]]
+            target_metric = metrics[target_metric]
             if target_metric < best_model_loss:
                 self.logger.info("Saving model...")
                 best_model_loss = target_metric
@@ -170,9 +170,7 @@ class StratifiedKFoldTrain:
                     fold_train_outs.append(train_out)
                     fold_test_outs.append(test_out)
 
-                    self.tracker.log_metrics(
-                        {"fold_id": fold_id, **flatten_dict(metrics)}
-                    )
+                    self.tracker.log_metrics({"fold_id": fold_id, **metrics})
                     self.tracker.finish()
 
                 return fold_train_outs, fold_test_outs
@@ -198,7 +196,7 @@ class StratifiedKFoldTrain:
             fold_train_outs.append(train_out)
             fold_test_outs.append(test_out)
 
-            self.tracker.log_metrics({"fold_id": fold_id, **flatten_dict(metrics)})
+            self.tracker.log_metrics({"fold_id": fold_id, **metrics})
             self.tracker.finish()
 
         return fold_train_outs, fold_test_outs

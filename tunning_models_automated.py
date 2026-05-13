@@ -25,7 +25,7 @@ def apply_trial_to_config(config: dict, trial_params: dict) -> dict:
     return new_config
 
 
-def main(tune_run_id: str = None, config_file="tune-mlp"):
+def main(tune_run_id: str = None, config_file="tune-logistic_regression"):
     # Load the configuration
     tune_config = load_config(default_file_name=config_file, run_id=tune_run_id)
     train_config = load_config(
@@ -88,8 +88,10 @@ def main(tune_run_id: str = None, config_file="tune-mlp"):
 
         metrics = tunning_models(config=updated_config)
 
-        tune_logger.info(f"Objective metric: {metrics[objective_metric]}")
-        return metrics[objective_metric]
+        tune_logger.info(
+            f"Objective metric: {metrics[objective_metric[0]][objective_metric[1]]}"
+        )
+        return metrics[objective_metric[0]][objective_metric[1]]
 
     optimizer_factory = OptimizerFactory(tune_config)
     optimizer = optimizer_factory.get_optimizer()

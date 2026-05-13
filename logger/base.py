@@ -1,5 +1,6 @@
 import logging
 
+
 class Logger:
     def __init__(self, name, log_file, level=logging.INFO):
         self.logger = self.__setup_logger(name, log_file, level)
@@ -15,10 +16,10 @@ class Logger:
 
         returns: Logger
         """
-        formatter = logging.Formatter('%(asctime)s | %(levelname)s | %(message)s')
+        formatter = logging.Formatter("%(asctime)s | %(levelname)s | %(message)s")
         logger = logging.getLogger(name)
         logger.setLevel(level)
-        
+
         # Disable propagation to parent loggers to avoid duplicate logging
         logger.propagate = False
 
@@ -29,9 +30,10 @@ class Logger:
             handler.close()
 
         # File handler
-        file_handler = logging.FileHandler(log_file)
-        file_handler.setFormatter(formatter)
-        logger.addHandler(file_handler)
+        if log_file is not None:
+            file_handler = logging.FileHandler(log_file)
+            file_handler.setFormatter(formatter)
+            logger.addHandler(file_handler)
 
         # Console handler
         console_handler = logging.StreamHandler()

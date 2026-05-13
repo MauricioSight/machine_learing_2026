@@ -17,6 +17,7 @@ class WandBTracker(BaseTracker):
             group=group,
             name=run_name,
             config=self.config,
+            settings=wandb.Settings(_service_wait=300),
         )
 
         try:

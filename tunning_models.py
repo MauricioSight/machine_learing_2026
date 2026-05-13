@@ -42,15 +42,19 @@ def main(config=None, X=None, y_true=None):
     tunning_automated_id = config.get("tunning_automated_id", None)
     config["phase"] = "tunning"  # persist phase
     run_id = config["run_id"]
-    run_dir = get_run_dir(run_id)
 
-    if tunning_automated_id is not None:
+    if tunning_automated_id is None:
+        run_dir = get_run_dir(run_id)
         save_run_artifacts(run_dir, config)
 
     # Setup logger
     logger = Logger(
         name="train_validation",
-        log_file=f"{run_dir}/{config["phase"]}_output.log",
+        log_file=(
+            f"{run_dir}/{config["phase"]}_output.log"
+            if tunning_automated_id is None
+            else None
+        ),
         level=logging.DEBUG if "debug" in config and config["debug"] else logging.INFO,
     )
 
@@ -103,17 +107,17 @@ def main(config=None, X=None, y_true=None):
 
     # 5. Get metrics
     logger.debug("Getting metrics...")
-    train_metrics = metrics_handler.get_overall_metrics(
+    train_metrics = metrics_handler.get_fold_metrics(
         [i[0] for i in fold_train_losses], [i[1] for i in fold_train_losses]
     )
-    val_metrics = metrics_handler.get_overall_metrics(
+    val_metrics = metrics_handler.get_fold_metrics(
         [i[0] for i in fold_val_losses], [i[1] for i in fold_val_losses]
     )
 
     logger.info("Execution completed.")
 
     # 7. Save run artifacts
-    if tunning_automated_id is not None:
+    if tunning_automated_id is None:
         logger.debug("Saving run artifacts...")
         save_run_artifacts(
             run_dir, {**config, "phase": "tunning_train"}, metrics=train_metrics

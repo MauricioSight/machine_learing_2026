@@ -101,10 +101,10 @@ def main(config=None, X=None, y_true=None):
 
     # 5. Get metrics
     logger.debug("Getting metrics...")
-    train_metrics = metrics_handler.get_overall_metrics(
+    train_metrics = metrics_handler.get_fold_metrics(
         [i[0] for i in train_out], [i[1] for i in train_out]
     )
-    test_metrics = metrics_handler.get_overall_metrics(
+    test_metrics = metrics_handler.get_fold_metrics(
         [i[0] for i in test_out], [i[1] for i in test_out]
     )
     # tracker.log_metrics({**metrics, 'test_loss': val_loss})

@@ -85,16 +85,16 @@ class LogisticRegressionClassifier(nn.Module):
 
     def fit(
         self,
-        X: np.ndarray,
-        y,
+        X_train: np.ndarray,
+        y_train,
     ):
-        X_tensor = torch.from_numpy(X).float().to(self.device)
+        X_tensor = torch.from_numpy(X_train).float().to(self.device)
 
         # Compatível com pandas categorical
-        if hasattr(y, "codes"):
-            y_tensor = torch.tensor(y.codes, dtype=torch.long, device=self.device)
+        if hasattr(y_train, "codes"):
+            y_tensor = torch.tensor(y_train.codes, dtype=torch.long, device=self.device)
         else:
-            y_tensor = torch.tensor(y, dtype=torch.long, device=self.device)
+            y_tensor = torch.tensor(y_train, dtype=torch.long, device=self.device)
 
         self.num_classes = torch.unique(y_tensor)
 
@@ -103,6 +103,9 @@ class LogisticRegressionClassifier(nn.Module):
         loader = DataLoader(dataset, batch_size=self.batch_size, shuffle=True)
 
         self.train()
+
+        num_logs = 10
+        log_every = max(1, self.num_epochs // num_logs)
 
         for epoch in range(self.num_epochs):
 
@@ -124,10 +127,14 @@ class LogisticRegressionClassifier(nn.Module):
 
                 self.tracker.log_metrics({"epoch": epoch, "loss": loss.item()})
 
-            self.logger.info(
-                f"Epoch [{epoch+1}/{self.num_epochs}] "
-                f"Loss: {epoch_loss/len(loader):.6f}"
+            should_log = (
+                epoch == 1 or epoch == self.num_epochs or epoch % log_every == 0
             )
+            if should_log:
+                self.logger.info(
+                    f"Epoch [{epoch+1}/{self.num_epochs}] "
+                    f"Loss: {epoch_loss/len(loader):.6f}"
+                )
 
     @torch.no_grad()
     def predict(self, X: np.ndarray) -> torch.Tensor:

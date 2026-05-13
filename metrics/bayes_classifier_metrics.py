@@ -15,7 +15,46 @@ class BayesClassifierMetrics:
         self.device = device
         self.logger = logger
 
-    def get_overall_metrics(
+    def get_run_metrics(self, y_true: pd.DataFrame, y_scores: np.ndarray, verbose=True):
+        """
+        Compute metrics over all folds.
+
+        Returns:
+        - point estimate (mean)
+        - confidence interval (95%)
+        """
+        y_true = np.array(y_true)
+
+        # metrics
+        y_scores = y_scores.cpu()
+        acc = accuracy_score(y_true, y_scores)
+
+        error_rate = 1.0 - acc
+
+        precision = precision_score(y_true, y_scores, average="binary", zero_division=0)
+
+        recall = recall_score(y_true, y_scores, average="binary", zero_division=0)
+
+        f_measure = f1_score(y_true, y_scores, average="binary", zero_division=0)
+
+        if verbose:
+            self.logger.info(
+                f"Error: {error_rate:.6f}"
+                f" | Precision: {precision:.6f}"
+                f" | Recall: {recall:.6f}"
+                f" | F1: {f_measure:.6f}"
+            )
+
+        results = {
+            "error_rate": error_rate,
+            "precision": precision,
+            "recall": recall,
+            "f_measure": f_measure,
+        }
+
+        return results
+
+    def get_fold_metrics(
         self, y_true: list[pd.DataFrame], y_scores: list[np.ndarray], verbose=True
     ) -> dict:
         """

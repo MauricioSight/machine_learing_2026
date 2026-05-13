@@ -12,6 +12,7 @@ modeling:
   
   training:
     name: stratified_k_fold
+    target_metric: error_rate
     n_repeats: 1
 
 metrics:

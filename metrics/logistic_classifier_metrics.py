@@ -39,7 +39,49 @@ class LogisticClassifierMetrics:
         # binary
         return (logits >= 0).astype(int)
 
-    def get_overall_metrics(
+    def get_run_metrics(
+        self, y_true: pd.DataFrame, y_prob: np.ndarray, verbose=True
+    ) -> dict:
+        y_t_np = np.array(y_true)
+
+        y_t_tensor = torch.tensor(y_t_np, dtype=torch.long, device=self.device)
+
+        logits_tensor = self._prepare_logits(y_prob)
+
+        # CrossEntropyLoss
+        loss = self.criterion(logits_tensor, y_t_tensor).item()
+
+        # logits -> predictions
+        y_pred = self._logits_to_predictions(logits_tensor)
+
+        num_classes = len(np.unique(y_t_np))
+
+        average = "binary" if num_classes == 2 else "macro"
+
+        precision = precision_score(y_t_np, y_pred, average=average, zero_division=0)
+
+        recall = recall_score(y_t_np, y_pred, average=average, zero_division=0)
+
+        f_measure = f1_score(y_t_np, y_pred, average=average, zero_division=0)
+
+        if verbose:
+            self.logger.info(
+                f"Error: {loss:.6f}"
+                f" | Precision: {precision:.6f}"
+                f" | Recall: {recall:.6f}"
+                f" | F1: {f_measure:.6f}"
+            )
+
+        results = {
+            "error_rate": loss,
+            "precision": precision,
+            "recall": recall,
+            "f_measure": f_measure,
+        }
+
+        return results
+
+    def get_fold_metrics(
         self, y_true: list[pd.DataFrame], y_prob: list[np.ndarray], verbose=True
     ) -> dict:
 
