@@ -105,9 +105,10 @@ def get_tune_id(tune_config: dict, train_config: dict, keys) -> str:
     return tune_id
 
 
-def get_run_dir(run_id: str, base_dir: str = "runs") -> Path:
+def get_run_dir(run_id: str, base_dir: str = "runs", create=False) -> Path:
     run_dir = Path(base_dir) / run_id
-    run_dir.mkdir(parents=True, exist_ok=True)
+    if create:
+        run_dir.mkdir(parents=True, exist_ok=True)
     return run_dir
 
 

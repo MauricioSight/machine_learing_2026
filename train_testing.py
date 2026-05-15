@@ -32,7 +32,7 @@ def main(config=None, X=None, y_true=None):
     try:
         if config is None:
             config = load_config(
-                run_id="logistic_regression_ionosphere_20260513_113544"
+                run_id="logistic_regression_ionosphere_20260514_135600"
             )
     except Exception as e:
         print("Error:", e)
@@ -43,7 +43,7 @@ def main(config=None, X=None, y_true=None):
 
     config["phase"] = "train_testing"  # persist testing phase
     run_id = config["run_id"]
-    run_dir = get_run_dir(run_id)
+    run_dir = get_run_dir(run_id, create=True)
 
     save_run_artifacts(run_dir, config)
 

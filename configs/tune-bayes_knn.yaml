@@ -1,0 +1,12 @@
+train_config: bayes_knn
+
+framework: optuna
+algorithm: tpe
+
+n_trials: 15
+objective_metric: error_rate
+direction: minimize
+
+search_space:
+  modeling-structure-k: [int, 1, 31, 2]
+  modeling-structure-dist_metric: [categorical, euclidean, city_block, chebyshev]

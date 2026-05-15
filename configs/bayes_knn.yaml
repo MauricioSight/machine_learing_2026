@@ -1,3 +1,5 @@
+phase: tunning
+
 data_loader:
   name: ionosphere
 
@@ -11,9 +13,10 @@ modeling:
     dist_metric: euclidean # [euclidean, city_block, chebyshev]
   
   training:
-    name: stratified_k_fold
+    name: stratified_k_fold_tunning_train
+    tunning_config: tune-bayes_knn
     target_metric: error_rate
-    n_repeats: 1
+    n_repeats: 30
 
 metrics:
   name: bayes_classifier_metrics

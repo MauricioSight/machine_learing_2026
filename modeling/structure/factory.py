@@ -10,7 +10,11 @@ class ModelingStructureFactory:
     """
 
     def get(
-        self, config: dict, logger: Logger, device: TorchDevice, tracker: BaseTracker
+        self,
+        config: dict,
+        logger: Logger,
+        device: TorchDevice,
+        tracker: BaseTracker = None,
     ):
         name = config.get("modeling", {}).get("structure", {}).get("name")
 

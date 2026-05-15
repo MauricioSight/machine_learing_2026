@@ -19,5 +19,12 @@ class ModelingTrainingFactory:
 
             return StratifiedKFoldTrain(config, logger, device, tracker)
 
+        if name == "stratified_k_fold_tunning_train":
+            from modeling.training.stratified_k_fold_tunning_train import (
+                StratifiedKFoldTunningTrain,
+            )
+
+            return StratifiedKFoldTunningTrain(config, logger, device, tracker)
+
         else:
             raise ValueError(f"Unsupported ModelingTrainingFactory name: {name}")

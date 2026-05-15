@@ -175,7 +175,7 @@ class StratifiedKFoldTrain:
 
                 return fold_train_outs, fold_test_outs
 
-            self.tracker.start_run(model, fold_id=inner_fold_id)
+            self.tracker.start_run(model, fold_id=fold_id)
 
             train_out, test_out = self.train_epoch(
                 fold_id, X, y, train_idx, test_idx, model
