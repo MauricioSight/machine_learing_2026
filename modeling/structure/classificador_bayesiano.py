@@ -53,7 +53,14 @@ class BayesClassifier:
         self.log_det_cov = checkpoint["log_det_cov"].to(self.device)
         self.classes = checkpoint["classes"].to(self.device)
 
-    def fit(self, X, y):
+    def fit(
+        self,
+        X,
+        y,
+        X_val: np.ndarray = None,
+        y_val=None,
+        verbose=True,
+    ):
         X = torch.from_numpy(X).to(self.device)
         y = torch.tensor(y.codes).to(self.device)
 

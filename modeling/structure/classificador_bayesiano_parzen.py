@@ -52,7 +52,14 @@ class ParzenWindowBayesian:
         self.priors = checkpoint["priors"]
         self.classes = checkpoint["classes"].to(self.device)
 
-    def fit(self, X, y):
+    def fit(
+        self,
+        X,
+        y,
+        X_val: np.ndarray = None,
+        y_val=None,
+        verbose=True,
+    ):
         X = torch.from_numpy(X).to(self.device)
         y = torch.tensor(y.codes).to(self.device)
 

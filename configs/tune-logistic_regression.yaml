@@ -3,11 +3,13 @@ train_config: logistic_regression
 framework: optuna
 algorithm: tpe
 
-n_trials: 30
-objective_metric: [error_rate, mean]
+n_trials: 15
+objective_metric: error_rate
 direction: minimize
 
 search_space:
-  modeling-training-learning_rate: [categorical, 0.01, 0.001, 0.0001, 0.00001]
-  modeling-training-num_epochs: [int, 10, 1000, 10]
-  modeling-training-batch_size: [categorical, 32, 64, 128]
+  modeling-training-learning_rate: [float_log, 1e-5, 1e-1]
+  modeling-training-num_epochs: [int, 50, 500, 10]
+  modeling-training-batch_size: [categorical, 16, 32, 64, 128]
+  modeling-training-optimizer: [categorical, sgd, adam, adamw]
+  modeling-training-weight_decay: [float_log, 1e-8, 1e-2]
