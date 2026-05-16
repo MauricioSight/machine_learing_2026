@@ -45,6 +45,11 @@ class ModelingStructureFactory:
             )
 
             return ParzenWindowBayesian(config=config, device=device)
+        if name == "KCM_K_GH":
+            from modeling.structure.KCM_K_GH import (
+                KCM_K_GH,
+            )
 
+            return KCM_K_GH(config=config, logger=logger, device=device)
         else:
             raise ValueError(f"Unsupported ModelingStructureFactory name: {name}")

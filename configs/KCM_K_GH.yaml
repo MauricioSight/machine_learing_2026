@@ -1,0 +1,21 @@
+phase: tunning
+
+data_loader:
+  name: ionosphere
+
+pre_processing:
+  name: none
+
+modeling:
+  structure:
+    name: KCM_K_GH
+    n_classes: 2
+    max_iter: 100
+  
+  training:
+    name: stratified_k_fold
+    target_metric: error_rate
+    n_repeats: 30
+
+metrics:
+  name: bayes_classifier_metrics
