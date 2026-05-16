@@ -1,5 +1,8 @@
 phase: tunning
 
+tracker:
+  project_name: aprendizagem_maquina_projeto
+
 data_loader:
   name: ionosphere
 
@@ -11,7 +14,7 @@ modeling:
     name: bayes_class
   
   training:
-    name: stratified_k_fold
+    name: stratified_k_fold_tunning_train
     target_metric: error_rate
     n_repeats: 30
 

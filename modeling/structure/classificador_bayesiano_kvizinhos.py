@@ -58,7 +58,14 @@ class KNNBayesian:
         self.y_train = checkpoint["y_train"].to(self.device)
         self.classes = checkpoint["classes"].to(self.device)
 
-    def fit(self, X, y):
+    def fit(
+        self,
+        X,
+        y,
+        X_val: np.ndarray = None,
+        y_val=None,
+        verbose=True,
+    ):
         self.X_train = torch.from_numpy(X).to(self.device)
         self.y_train = torch.tensor(y.codes).to(self.device)
         self.classes = torch.unique(self.y_train)

@@ -1,3 +1,5 @@
+phase: tunning
+
 tracker:
   project_name: aprendizagem_maquina_projeto
 
@@ -14,9 +16,11 @@ modeling:
     num_classes: 2
   
   training:
-    name: stratified_k_fold
-    target_metric: error_rate
-    n_repeats: 1
+    name: stratified_k_fold_tunning_train
+    n_repeats: 30
+    tunning_config: tune-logistic_regression
+    optimizer: adam
+    weight_decay: 0.0
     learning_rate: 0.001
     num_epochs: 10
     batch_size: 64
