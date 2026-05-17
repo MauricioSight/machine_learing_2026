@@ -1,0 +1,224 @@
+import torch
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.metrics import silhouette_score, adjusted_rand_score, confusion_matrix
+import random
+import os
+os.environ['PYTHONHASHSEED'] = str(42)
+random.seed(42)
+np.random.seed(42)
+torch.manual_seed(42)
+
+if torch.cuda.is_available():
+    torch.cuda.manual_seed(42)
+    torch.cuda.manual_seed_all(42)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+class KCM_K_GH:
+    def __init__(self, n_clusters, gamma=1.0, max_iter=100, device='cpu'):
+        self.c = n_clusters
+        self.gamma = gamma
+        self.max_iter = max_iter
+        self.device = device
+        self.prototypes = None
+        self.s2 = None
+        self.objective_value = float('inf')
+        self.loss_history = []
+        self.last_valid_D_j = None  
+
+    def _gaussian_kernel(self, X, G):
+        squared_diff = (X.unsqueeze(1) - G.unsqueeze(0)) ** 2
+        weighted_diff = squared_diff / self.s2.unsqueeze(0).unsqueeze(0)
+        sum_weighted = torch.sum(weighted_diff, dim=-1)
+        return torch.exp(-0.5 * sum_weighted)
+
+    def compute_objective(self, X, labels):
+        with torch.no_grad():
+            K = self._gaussian_kernel(X, self.prototypes)
+            K_assigned = K[torch.arange(X.shape[0]), labels]
+            return torch.sum(2 * (1.0 - K_assigned)).item()
+
+    def fit(self, X):
+        if not isinstance(X, torch.Tensor):
+            X = torch.tensor(X, dtype=torch.float32)
+        X = X.to(self.device)
+        n, p = X.shape
+        
+        self.loss_history = []
+        self.last_valid_D_j = None  # Reseta para a nova rodada
+        
+        indices = torch.randperm(n)[:self.c]
+        self.prototypes = X[indices].clone()
+        
+        inv_s2_val = self.gamma ** (1.0 / p)
+        self.s2 = torch.full((p,), 1.0 / inv_s2_val, device=self.device)
+        
+        labels = torch.zeros(n, dtype=torch.long, device=self.device)
+        
+        for iteration in range(self.max_iter):
+            old_labels = labels.clone()
+            K = self._gaussian_kernel(X, self.prototypes)
+            labels = torch.argmin(2 * (1.0 - K), dim=-1)
+            
+            current_j = self.compute_objective(X, labels)
+            self.loss_history.append(current_j)
+            
+            if iteration > 0 and torch.equal(labels, old_labels):
+                print('Convergiu na iteração ' + str(iteration))
+                break
+                
+            # Etapa 1: Representação
+            for i in range(self.c):
+                mask = (labels == i)
+                if torch.sum(mask) == 0:
+                    continue
+                K_i = K[mask, i].unsqueeze(1)
+                X_i = X[mask]
+                self.prototypes[i] = torch.sum(K_i * X_i, dim=0) / torch.sum(K_i)
+
+            # Etapa 2: Computação dos hiperparâmetros de largura
+            squared_diff = (X.unsqueeze(1) - self.prototypes.unsqueeze(0)) ** 2
+            K_assigned = K[torch.arange(n), labels].unsqueeze(1).unsqueeze(2)
+            squared_diff_assigned = squared_diff[torch.arange(n), labels] 
+            
+            # Cálculo do denominador original da Equação (16)
+            D_j = torch.sum(K_assigned.squeeze(-1) * squared_diff_assigned, dim=0)
+            
+            # Verifica se alguma variável j colapsou para zero (ou quase zero devido a precisão de float)
+            if torch.any(D_j <= 1e-7):
+                if self.last_valid_D_j is not None:
+                    # Se tivermos um histórico válido, usamos ele para estabilizar a iteração atual
+                    D_j = self.last_valid_D_j.clone()
+            else:
+                # Se o D_j atual for perfeitamente válido, nós o salvamos para o futuro
+                self.last_valid_D_j = D_j.clone()
+            # --------------------------------
+            
+            prod_term = torch.prod(D_j) ** (1.0 / p)
+            inv_s2 = prod_term / D_j
+            self.s2 = 1.0 / inv_s2
+
+        self.objective_value = self.compute_objective(X, labels)
+        return self
+
+    def predict(self, X):
+        if not isinstance(X, torch.Tensor):
+            X = torch.tensor(X, dtype=torch.float32)
+        X = X.to(self.device)
+        K = self._gaussian_kernel(X, self.prototypes)
+        return torch.argmin(2 * (1.0 - K), dim=-1)
+
+if __name__ == "__main__":
+    df = pd.read_csv('datasets/ionosphere.data', header=None)
+
+    df = df.drop(1, axis=1)
+
+    n_cluster = [2,3,4,5,6]
+    n_runs = 100
+
+    X_numpy = df.iloc[:, :-1].values
+    y_true_str = df.iloc[:, -1].values
+    y_true = np.where(y_true_str == 'g', 1, 0)
+
+    X_train = torch.tensor(X_numpy, dtype=torch.float32)
+
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    print(f"Executando o experimento no dispositivo: {device}\n")
+
+    # --- PASSO 1: Varredura de c para encontrar c* ótimo ---
+    silhouette_results = {}
+    best_models_per_c = {}
+
+    for c in n_cluster:
+        models_run = []
+        objectives_run = []
+        
+        print(f"Executando {n_runs} vezes para c = {c}...")
+        
+        for run in range(n_runs):
+            model = KCM_K_GH(n_clusters=c, gamma=1.0, device=device)
+            model.fit(X_train)
+            
+            if not np.isnan(model.objective_value) and not np.isinf(model.objective_value):
+                models_run.append(model)
+                objectives_run.append(model.objective_value)
+                
+            best_index = np.argmin(objectives_run)
+            best_model_for_c = models_run[best_index]
+            best_objective = objectives_run[best_index]
+                
+        preds = best_model_for_c.predict(X_train)
+        if isinstance(preds, torch.Tensor):
+            labels = preds.cpu().numpy()
+        else:
+            labels = np.array(preds)
+        
+        # Calcula a silhueta no espaço original para este 'c'
+        sil_score = silhouette_score(X_numpy, labels)
+        silhouette_results[c] = sil_score
+        best_models_per_c[c] = best_model_for_c
+        
+        print(f"  -> Melhor J: {best_objective:.4f} | Silhueta: {sil_score:.4f}")
+
+    # Identificação do c* ideal por argmax_c Sil(c)
+    c_star = max(silhouette_results, key=silhouette_results.get)
+
+    print("\n" + "="*60)
+    print(f"RESULTADO COMPLEMENTAR: c* OTIMIZADO = {c_star}")
+    print("="*60)
+
+    final_model = best_models_per_c[c_star]
+    final_preds = final_model.predict(X_train)
+    final_labels = final_preds.cpu().numpy() if isinstance(final_preds, torch.Tensor) else np.array(final_preds)
+
+    # i) Protótipos de cada grupo
+    print(f"\ni) PROTÓTIPOS DOS GRUPOS (g_1, ..., g_c) para c={c_star}:")
+    prototypes_np = final_model.prototypes.cpu().numpy()
+    for idx, proto in enumerate(prototypes_np):
+        print(f"  Grupo {idx}: {proto}")
+
+    # ii) Vetor de parâmetros de largura s (raiz quadrada de s^2)
+    print(f"\nii) VETOR DE PARAMETROS DE LARGURA (s):")
+    s_vector = torch.sqrt(final_model.s2).cpu().numpy()
+    print(f"  s = {s_vector}")
+
+    # Cálculo e comentário do Índice de Rand Corrigido (ARI)
+    ari_score = adjusted_rand_score(y_true, final_labels)
+    print(f"\nINDICE DE RAND CORRIGIDO (ARI): {ari_score:.4f}")
+    print("-" * 40)
+    print("Comentário sobre o ARI:")
+    if ari_score > 0.7:
+        print("  Ótima aderência com as classes reais de radar ('g' e 'b').")
+    elif ari_score > 0.4:
+        print("  Aderência moderada. O algoritmo separou parte da estrutura original.")
+    else:
+        print("  Aderência fraca. Os grupos do algoritmo divergiram das classes a priori.")
+
+
+    # iii) Matriz de Confusão (Algoritmo vs A Priori)
+    print(f"\niii) GERANDO PLOT DA MATRIZ DE CONFUSÃO...")
+    cm = confusion_matrix(y_true, final_labels)
+    plt.figure(figsize=(6, 4))
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
+            xticklabels=[f'Cluster {i}' for i in range(c_star)],
+            yticklabels=['Bad (0)', 'Good (1)'])
+    plt.title(f'Matriz de Confusão (Algoritmo vs A Priori) para c={c_star}')
+    plt.ylabel('Partição A Priori (Real)')
+    plt.xlabel('Partição do Algoritmo (Predito)')
+    plt.tight_layout()
+    plt.show()
+
+    # iv) Plot da Função Objetivo versus as iterações
+    print(f"\niv) GERANDO PLOT DA FUNÇÃO OBJETIVO VS ITERAÇÕES...")
+    plt.figure(figsize=(7, 4.5))
+    plt.plot(range(1, len(final_model.loss_history) + 1), final_model.loss_history, 
+            marker='o', color='darkorange', linewidth=2)
+    plt.title(f'Convergência da Função Objetivo ($J_{{KCM-K-GH}}$) para c={c_star}')
+    plt.xlabel('Iterações')
+    plt.ylabel('Valor da Função Objetivo ($J$)')
+    plt.grid(True, linestyle='--', alpha=0.5)
+    plt.tight_layout()
+    plt.show()
