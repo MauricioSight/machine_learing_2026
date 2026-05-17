@@ -36,7 +36,7 @@ class StratifiedKFoldTunningTrain:
         Ajusta o modelo Bayesiano.
         """
 
-        model.fit(X_train, y_train, verbose)
+        model.fit(X_train, y_train, verbose=verbose)
 
     def test(self, model, X_val, y_val):
         """
@@ -152,8 +152,6 @@ class StratifiedKFoldTunningTrain:
         )
         tune_config = load_config(default_file_name=tune_config_name)
         direction = tune_config.get("direction")
-        direction = tune_config.get("direction")
-
         objective_metric = tune_config.get("objective_metric")
 
         completed_folds_file = self.run_dir / "completed_folds.json"
@@ -180,14 +178,14 @@ class StratifiedKFoldTunningTrain:
 
             self.logger.info(f"Running fold {fold_id}/{total_folds}")
 
+            best_fold_params = None
+            best_fold_value = None
             if phase == "tunning" and has_tunning:
                 inner_cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
                 X_train_outer = X[train_idx]
                 y_train_outer = y.iloc[train_idx].reset_index(drop=True)
 
-                best_fold_params = None
-                best_fold_value = None
                 for inner_fold_id, (inner_train_idx, inner_test_idx) in enumerate(
                     inner_cv.split(X_train_outer, y_train_outer["label"])
                 ):
@@ -240,17 +238,18 @@ class StratifiedKFoldTunningTrain:
                         best_fold_value = best_trial.value
                         best_fold_params = best_trial.params
 
-            updated_config = apply_trial_to_config(self.config, best_fold_params)
-            self.config = updated_config
+            if best_fold_params is not None:
+                updated_config = apply_trial_to_config(self.config, best_fold_params)
+                self.config = updated_config
 
-            self.logger.debug("Initializing tracker...")
-            flat_config = flatten_dict(self.config)
-            self.tracker = WandBTracker(config=flat_config)
+                self.logger.debug("Initializing tracker...")
+                flat_config = flatten_dict(self.config)
+                self.tracker = WandBTracker(config=flat_config)
 
-            model = ModelingStructureFactory().get(
-                self.config, self.logger, self.device, self.tracker
-            )
-            model.compile()
+                model = ModelingStructureFactory().get(
+                    self.config, self.logger, self.device, self.tracker
+                )
+                model.compile()
 
             self.tracker.start_run(model, fold_id=fold_id)
 

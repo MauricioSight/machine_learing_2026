@@ -1,0 +1,8 @@
+train_config: bayes_class
+
+framework: optuna
+algorithm: tpe
+
+n_trials: 15
+objective_metric: error_rate
+direction: minimize

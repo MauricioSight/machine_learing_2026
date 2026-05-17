@@ -12,8 +12,9 @@ class KNNBayesian:
         self.config = config
 
         self.phase = self.config.get("phase")
+        model_name = self.config.get("modeling", {}).get("structure", {}).get("name")
         self.model_dir = (
-            get_run_dir(self.config.get("run_id")) / f"{self.phase}_model.pt"
+            get_run_dir(self.config.get("run_id")) / f"{self.phase}_{model_name}.pt"
         )
 
         self.k = config.get("modeling", {}).get("structure", {}).get("k")

@@ -19,5 +19,10 @@ class MetricsFactory:
 
             return BayesClassifierMetrics(config, logger, device)
 
+        if name == "KCM_K_GH_metrics":
+            from metrics.KCM_K_GH_metrics import KCMKGHMetrics
+
+            return KCMKGHMetrics(config, logger, device)
+
         else:
             raise ValueError(f"Unsupported MetricsFactory name: {name}")

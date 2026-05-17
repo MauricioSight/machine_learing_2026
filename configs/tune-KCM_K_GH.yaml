@@ -4,9 +4,8 @@ framework: optuna
 algorithm: tpe
 
 n_trials: 15
-objective_metric: error_rate
-direction: minimize
+objective_metric: silhouette_score
+direction: maximize
 
 search_space:
-  modeling-structure-n_classes: [int, 2, 6]
-  modeling-structure-max_iter: [int, 50, 500, 10]
+  modeling-structure-n_clusters: [int, 2, 3, 4, 5, 6]

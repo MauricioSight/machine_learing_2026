@@ -1,4 +1,4 @@
-train_config: logistic_regression
+train_config: majority_voting_classifier
 
 framework: optuna
 algorithm: tpe
@@ -8,8 +8,16 @@ objective_metric: error_rate
 direction: minimize
 
 search_space:
+  # Logistic regression
   modeling-training-learning_rate: [float_log, 1e-5, 1e-1]
   modeling-training-num_epochs: [int, 50, 500, 10]
   modeling-training-batch_size: [categorical, 16, 32, 64, 128]
   modeling-training-optimizer: [categorical, sgd, adam, adamw]
   modeling-training-weight_decay: [float_log, 1e-8, 1e-2]
+  
+  # bayes_parzen
+  modeling-structure-h: [float_log, 1e-3, 10.0]
+
+  # bayes_knn
+  modeling-structure-k: [int, 1, 31, 2]
+  modeling-structure-dist_metric: [categorical, euclidean, city_block, chebyshev]

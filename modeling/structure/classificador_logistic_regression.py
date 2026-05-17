@@ -24,11 +24,6 @@ class LogisticRegressionClassifier(nn.Module):
         self.tracker = tracker
         self.device = device
 
-        self.phase = self.config.get("phase")
-        self.model_dir = (
-            get_run_dir(self.config.get("run_id")) / f"{self.phase}_model.pt"
-        )
-
         training_cfg = self.config.get("modeling", {}).get("training", {})
 
         self.learning_rate = training_cfg.get("learning_rate", 1e-3)
@@ -39,6 +34,12 @@ class LogisticRegressionClassifier(nn.Module):
         self.patience = training_cfg.get("patience", 20)
         self.gradient_clip = training_cfg.get("gradient_clip", None)
         structure_cfg = self.config.get("modeling", {}).get("structure", {})
+
+        self.phase = self.config.get("phase")
+        model_name = structure_cfg.get("name")
+        self.model_dir = (
+            get_run_dir(self.config.get("run_id")) / f"{self.phase}_{model_name}.pt"
+        )
 
         self.input_dim = structure_cfg.get("input_dim")
         self.num_classes = structure_cfg.get("num_classes")

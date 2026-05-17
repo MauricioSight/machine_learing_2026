@@ -50,6 +50,14 @@ class ModelingStructureFactory:
                 KCM_K_GH,
             )
 
-            return KCM_K_GH(config=config, logger=logger, device=device)
+            return KCM_K_GH(config, logger, device, tracker)
+
+        if name == "majority_voting_classifier":
+            from modeling.structure.classificador_voto_majoritario import (
+                MajorityVotingClassifier,
+            )
+
+            return MajorityVotingClassifier(config, logger, device, tracker)
+
         else:
             raise ValueError(f"Unsupported ModelingStructureFactory name: {name}")

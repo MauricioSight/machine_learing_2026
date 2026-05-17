@@ -26,5 +26,12 @@ class ModelingTrainingFactory:
 
             return StratifiedKFoldTunningTrain(config, logger, device, tracker)
 
+        if name == "KCM_K_GH_tunning":
+            from modeling.training.KCM_K_GH_tunning import (
+                KCMKGHTunningTrain,
+            )
+
+            return KCMKGHTunningTrain(config, logger, device, tracker)
+
         else:
             raise ValueError(f"Unsupported ModelingTrainingFactory name: {name}")

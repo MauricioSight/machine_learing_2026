@@ -4,19 +4,19 @@ data_loader:
   name: ionosphere
 
 pre_processing:
-  name: none
+  name: rmv_const_pre_processing
 
 modeling:
   structure:
     name: KCM_K_GH
-    n_classes: 2
+    n_clusters: 2
     max_iter: 100
     gamma: 1
   
   training:
-    name: stratified_k_fold
-    target_metric: error_rate
-    n_repeats: 30
+    name: KCM_K_GH_tunning
+    tunning_config: tune-KCM_K_GH
+    n_repeats: 100
 
 metrics:
-  name: bayes_classifier_metrics
+  name: KCM_K_GH_metrics

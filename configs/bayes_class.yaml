@@ -15,7 +15,7 @@ modeling:
   
   training:
     name: stratified_k_fold_tunning_train
-    target_metric: error_rate
+    tunning_config: tune-bayes_class
     n_repeats: 30
 
 metrics:
