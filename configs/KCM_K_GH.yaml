@@ -11,6 +11,7 @@ modeling:
     name: KCM_K_GH
     n_classes: 2
     max_iter: 100
+    gamma: 1
   
   training:
     name: stratified_k_fold

@@ -10,14 +10,8 @@ from tracker.base_tracker import BaseTracker
 from utils.experiment_io import get_run_dir
 
 class KCM_K_GH:
-    def __init__(self, config, logger, device: TorchDevice):
-        """
-        Variante KCM-K-GH do algoritmo KCM-K-H.
-        :param n_clusters: Número de clusters (c)
-        :param max_iter: Número máximo de iterações
-        :param tol: Tolerância para critério de parada (opcional)
-        :param device: 'cuda' para rodar na placa de vídeo, ou 'cpu'
-        """
+    def __init__(self, config, logger,  device= TorchDevice):
+        
         self.config = config
         self.logger = logger
         self.device = device
@@ -26,133 +20,125 @@ class KCM_K_GH:
         self.model_dir = (
             get_run_dir(self.config.get("run_id")) / f"{self.phase}_model.pt"
         )
-        self.c = self.config.get('modeling',{}).get('structure',{}).get('n_clusters')
-        self.max_iter = self.config.get('modeling',{}).get('structure',{}).get('max_iter')
-        
-        self.G = None       # Protótipos dos clusters (c, p)
-        self.inv_s_sq = None # 1 / s_j^2 (vetor global de hiperparâmetros) (p,)
-        self.labels = None  # Partição atual (P)
 
+        self.c = self.config.get('modeling',{}).get('structure',{}).get('n_clusters')
+        self.gamma = self.config.get('modeling',{}).get('structure',{}).get('gamma')
+        self.max_iter = self.config.get('modeling',{}).get('structure',{}).get('max_iter')
+
+        self.device = device
+
+        self.prototypes = None
+        self.s2 = None
+        self.labels = None
+
+        self.objective_value = float('inf')
+        self.loss_history = []
+        self.last_valid_D_j = None 
+        
     def save(self):
         torch.save(
             {
-                "G": self.G,
-                "inv_s_sq": self.inv_s_sq,
+                "prototypes": self.prototypes,
+                "s2": self.s2,
                 "labels": self.labels,
             },
             self.model_dir,
         )
-
     def load(self):
         checkpoint = torch.load(self.model_dir, map_location=self.device)
 
-        self.G = checkpoint["G"]
-        self.inv_s_sq = checkpoint["inv_s_sq"]
+        self.G = checkpoint["prototypes"]
+        self.inv_s_sq = checkpoint["s2"]
         self.labels = checkpoint["labels"]
 
-
     def reset_weights(self):
-        self.G = None       # Protótipos dos clusters (c, p)
-        self.inv_s_sq = None # 1 / s_j^2 (vetor global de hiperparâmetros) (p,)
-        self.labels = None  # Partição atual (P)
+        self.prototypes = None 
+        self.s2 = None 
+        self.labels = None
 
     def compile(self):
         pass
+    
+    def _gaussian_kernel(self, X, G):
+        squared_diff = (X.unsqueeze(1) - G.unsqueeze(0)) ** 2
+        weighted_diff = squared_diff / self.s2.unsqueeze(0).unsqueeze(0)
+        sum_weighted = torch.sum(weighted_diff, dim=-1)
+        return torch.exp(-0.5 * sum_weighted)
 
-    def _compute_kernel(self, X, G, inv_s_sq):
-        """
-        Calcula o Kernel Gaussiano (Equação 9) de forma vetorizada.
-        K(x_k, g_i) = exp( -0.5 * sum( (1/s_j^2) * (x_kj - g_ij)^2 ) )
-        Retorna matriz (n, c)
-        """
-        # X: (n, 1, p) | G: (1, c, p) -> diff: (n, c, p)
-        diff = X.unsqueeze(1) - G.unsqueeze(0)
-        
-        # D: (n, c)
-        D = torch.sum((diff ** 2) * inv_s_sq, dim=2)
-        return torch.exp(-0.5 * D)
+    def compute_objective(self, X, labels):
+        with torch.no_grad():
+            K = self._gaussian_kernel(X, self.prototypes)
+            K_assigned = K[torch.arange(X.shape[0]), labels]
+            return torch.sum(2 * (1.0 - K_assigned)).item()
 
-    def fit(self, X, y):
-        """
-        Treina o modelo e retorna as labels dos clusters.
-        :param X: Tensor PyTorch ou Array NumPy com os dados (n, p)
-        """
+    def fit(self, X):
         if not isinstance(X, torch.Tensor):
             X = torch.tensor(X, dtype=torch.float32)
         X = X.to(self.device)
-        
         n, p = X.shape
         
-        indices = torch.randperm(n)[:self.c]
-        self.G = X[indices].clone()
-        # Etapa 2 instrui gamma = 1. Na inicialização: 1/s_j^2 = (gamma)^(1/p) = 1
-        self.inv_s_sq = torch.ones(p, dtype=X.dtype, device=self.device)
+        self.loss_history = []
+        self.last_valid_D_j = None  # Reseta para a nova rodada
         
-        K = self._compute_kernel(X, self.G, self.inv_s_sq)
-        self.labels = torch.argmax(K, dim=1)
+        indices = torch.randperm(n)[:self.c]
+        self.prototypes = X[indices].clone()
+        
+        inv_s2_val = self.gamma ** (1.0 / p)
+        self.s2 = torch.full((p,), 1.0 / inv_s2_val, device=self.device)
+        
+        labels = torch.zeros(n, dtype=torch.long, device=self.device)
         
         for iteration in range(self.max_iter):
-            # ========================================================
-            # ETAPA 1: Representação (Equação 14)
-            # ========================================================
-            G_new = torch.zeros_like(self.G)
-            for i in range(self.c):
-                mask = (self.labels == i)
+            old_labels = labels.clone()
+            K = self._gaussian_kernel(X, self.prototypes)
+            labels = torch.argmin(2 * (1.0 - K), dim=-1)
             
-                X_i = X[mask]
-                K_i = K[mask, i].unsqueeze(1) # (n_i, 1)
-                print(K_i)
-                # Numerador e Denominador da Eq (14)
-                num = torch.sum(K_i * X_i, dim=0)
-                den = torch.sum(K_i)
-
-
-                G_new[i] = num / den
-                
-            self.G = G_new
-
-            # ========================================================
-            # ETAPA 2: Hiperparâmetros de largura (Equação 16 com gamma=1)
-            # ========================================================
-            # Atualiza o Kernel com o novo G (P e S são mantidos fixos)
-            K = self._compute_kernel(X, self.G, self.inv_s_sq)
+            current_j = self.compute_objective(X, labels)
+            self.loss_history.append(current_j)
             
-            E = torch.zeros(p, device=self.device)
-            for i in range(self.c):
-                #mask = (self.labels == i)
-                X_i = X[mask]
-                K_i = K[mask, i].unsqueeze(1)
-                diff_sq = (X_i - self.G[i]) ** 2
-                
-                # Somatório duplo: interno ao cluster e entre os clusters
-                E += torch.sum(K_i * diff_sq, dim=0)
-                
-            
-            prod_term = torch.exp(torch.mean(torch.log(E)))
-            
-            # Eq (16) final considerando gamma=1
-            self.inv_s_sq = prod_term / E
-            #print(self.inv_s_sq)
-            #rint(E)
-
-            # ========================================================
-            # ETAPA 3: Alocação (Equação 18)
-            # ========================================================
-            # Atualiza Kernel com o novo S
-            K = self._compute_kernel(X, self.G, self.inv_s_sq)
-            
-            # Regra de alocação: min 2(1-K) -> max K
-            labels_new = torch.argmax(K, dim=1)
-            
-            # Checagem de convergência
-            if torch.all(self.labels == labels_new):
-                print(f"Convergiu na iteração {iteration}.")
+            if iteration > 0 and torch.equal(labels, old_labels):
+                print('Convergiu na iteração ' + str(iteration))
                 break
                 
-            self.labels = labels_new
+            # Etapa 1: Representação
+            for i in range(self.c):
+                mask = (labels == i)
+                if torch.sum(mask) == 0:
+                    continue
+                K_i = K[mask, i].unsqueeze(1)
+                X_i = X[mask]
+                self.prototypes[i] = torch.sum(K_i * X_i, dim=0) / torch.sum(K_i)
+
+            # Etapa 2: Computação dos hiperparâmetros de largura
+            squared_diff = (X.unsqueeze(1) - self.prototypes.unsqueeze(0)) ** 2
+            K_assigned = K[torch.arange(n), labels].unsqueeze(1).unsqueeze(2)
+            squared_diff_assigned = squared_diff[torch.arange(n), labels] 
             
-        return self.labels.cpu().numpy()
-    
+            # Cálculo do denominador original da Equação (16)
+            D_j = torch.sum(K_assigned.squeeze(-1) * squared_diff_assigned, dim=0)
+            
+            # Verifica se alguma variável j colapsou para zero (ou quase zero devido a precisão de float)
+            if torch.any(D_j <= 1e-7):
+                if self.last_valid_D_j is not None:
+                    # Se tivermos um histórico válido, usamos ele para estabilizar a iteração atual
+                    D_j = self.last_valid_D_j.clone()
+            else:
+                # Se o D_j atual for perfeitamente válido, nós o salvamos para o futuro
+                self.last_valid_D_j = D_j.clone()
+            # --------------------------------
+            
+            prod_term = torch.prod(D_j) ** (1.0 / p)
+            inv_s2 = prod_term / D_j
+            self.s2 = 1.0 / inv_s2
+
+        self.objective_value = self.compute_objective(X, labels)
+        return self
+
     def predict(self, X):
-        predict = self.fit(X)
-        return predict
+        if not isinstance(X, torch.Tensor):
+            X = torch.tensor(X, dtype=torch.float32)
+        X = X.to(self.device)
+        K = self._gaussian_kernel(X, self.prototypes)
+
+        self.labels = torch.argmin(2 * (1.0 - K), dim=-1)
+        return self.labels
