@@ -57,6 +57,10 @@ class KCM_K_GH:
         self.s2 = None
         self.labels = None
 
+        self.objective_value = float("inf")
+        self.loss_history = []
+        self.last_valid_D_j = None
+
     def compile(self):
         pass
 
@@ -95,12 +99,13 @@ class KCM_K_GH:
     def _debug_tensor(self, tensor, name, iteration):
 
         if torch.isnan(tensor).any():
-
             self.logger.error(f"[NaN] {name} na iteração {iteration}")
 
         if torch.isinf(tensor).any():
-
             self.logger.error(f"[INF] {name} na iteração {iteration}")
+
+        if (tensor == 0).any():
+            self.logger.error(f"[zero] {name} na iteração {iteration}")
 
         self.logger.debug(
             f"{name} | "
@@ -141,6 +146,7 @@ class KCM_K_GH:
 
         labels = torch.zeros(n, dtype=torch.long, device=self.device)
 
+        labels_equals = 0
         for iteration in range(self.max_iter):
             old_labels = labels.clone()
             K = self._gaussian_kernel(X, self.prototypes)
@@ -155,21 +161,46 @@ class KCM_K_GH:
                     {"iteration": iteration, "train_loss": current_j}
                 )
 
-            self.logger.info(f"current_j: {current_j}")
+            cluster_counts = torch.bincount(
+                labels,
+                minlength=self.c,
+            )
+            self.logger.info(
+                f"Current J: {current_j:.4f} \tCluster counts: {cluster_counts.tolist()}"
+            )
             self.loss_history.append(current_j)
 
-            if iteration > 0 and torch.equal(labels, old_labels):
+            labels_equals += 1 if torch.equal(labels, old_labels) else 0
+            if iteration > 0 and labels_equals == 3:
                 self.logger.info("Convergiu na iteração " + str(iteration))
                 break
 
             # Etapa 1: Representação
             for i in range(self.c):
                 mask = labels == i
-                if torch.sum(mask) == 0:
+                cluster_size = torch.sum(mask).item()
+                if cluster_size == 0:
+                    self.logger.warning(
+                        f"Empty cluster detected "
+                        f"| iter={iteration} "
+                        f"| cluster={i}"
+                    )
                     continue
                 K_i = K[mask, i].unsqueeze(1)
                 X_i = X[mask]
-                self.prototypes[i] = torch.sum(K_i * X_i, dim=0) / torch.sum(K_i)
+
+                den = torch.sum(K_i)
+
+                if den <= 1e-12:
+                    self.logger.warning(
+                        f"Prototype update skipped "
+                        f"| iter={iteration} "
+                        f"| cluster={i} "
+                        f"| denominator={den.item():.6e}"
+                    )
+                    continue
+
+                self.prototypes[i] = torch.sum(K_i * X_i, dim=0) / den
 
             self._debug_tensor(
                 self.prototypes,
@@ -198,10 +229,10 @@ class KCM_K_GH:
             )
 
             # Verifica se alguma variável j colapsou para zero (ou quase zero devido a precisão de float)
-            invalid = D_j <= 1e-7
-
-            if self.last_valid_D_j is not None:
-                D_j[invalid] = self.last_valid_D_j[invalid]
+            if torch.any(D_j <= 1e-7):
+                if self.last_valid_D_j is not None:
+                    # Se tivermos um histórico válido, usamos ele para estabilizar a iteração atual
+                    D_j = self.last_valid_D_j.clone()
             else:
                 # Se o D_j atual for perfeitamente válido, nós o salvamos para o futuro
                 self.last_valid_D_j = D_j.clone()
@@ -210,6 +241,11 @@ class KCM_K_GH:
             prod_term = torch.prod(D_j) ** (1.0 / p)
             inv_s2 = prod_term / D_j
             self.s2 = 1.0 / inv_s2
+            self.s2 = torch.clamp(
+                self.s2,
+                min=1e-6,
+                max=1e6,
+            )
 
             self._debug_tensor(
                 D_j,

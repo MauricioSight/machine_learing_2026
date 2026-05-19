@@ -41,6 +41,18 @@ class KCMKGHMetrics:
         y_true = np.array(y_true)
         X, labels = y_scores
 
+        n_clusters = len(np.unique(labels.cpu().numpy()))
+        if n_clusters < 2:
+            self.logger.warning(f"n_clusters = {n_clusters}")
+            return {
+                "silhouette_score": -1,
+                "adjusted_rand_score": -1,
+                "accuracy": -1,
+                "precision": -1,
+                "recall": -1,
+                "f_measure": -1,
+            }
+
         sil = silhouette_score(
             X,
             labels.cpu(),

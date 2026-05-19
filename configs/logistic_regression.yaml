@@ -4,7 +4,7 @@ tracker:
   project_name: aprendizagem_maquina_projeto
 
 data_loader:
-  name: ionosphere
+  name: ionosphere_KCM_K_GH
 
 pre_processing:
   name: none
@@ -26,4 +26,4 @@ modeling:
     batch_size: 64
 
 metrics:
-  name: logistic_classifier_metrics
+  name: logistic_multi_classifier_metrics

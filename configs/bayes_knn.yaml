@@ -4,7 +4,7 @@ tracker:
   project_name: aprendizagem_maquina_projeto
 
 data_loader:
-  name: ionosphere
+  name: ionosphere_KCM_K_GH
 
 pre_processing:
   name: none
@@ -21,4 +21,4 @@ modeling:
     n_repeats: 30
 
 metrics:
-  name: bayes_classifier_metrics
+  name: bayes_multi_classifier_metrics

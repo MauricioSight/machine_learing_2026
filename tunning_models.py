@@ -30,7 +30,7 @@ def main(config=None, X=None, y_true=None):
     """
 
     if config is None:
-        config = load_config(default_file_name="KCM_K_GH")
+        config = load_config(default_file_name="bayes_knn")
 
     if "run_id" not in config:
         run_id = get_run_id(
@@ -66,10 +66,13 @@ def main(config=None, X=None, y_true=None):
     seed_all(seed)
     logger.debug(f"[ Using Seed : {seed} ]")
 
+    device = get_device()
+    logger.info(f"Using device: {device}")
+
     # 1. Load the dataset
     if X is None or y_true is None:
         logger.debug("Loading data...")
-        dataset_loader = DataLoaderFactory().get(config, logger)
+        dataset_loader = DataLoaderFactory().get(config, logger, device)
         pre_processing = DataPreProcessingFactory().get(config, logger)
         X, y_true = pre_processing.initialize(dataset_loader)
         logger.info("Data loaded successfully.")
@@ -78,9 +81,6 @@ def main(config=None, X=None, y_true=None):
 
     # 3. Initializations
     logger.debug("Initializing components...")
-
-    device = get_device()
-    logger.info(f"Using device: {device}")
 
     # 3.1 Tracker
     logger.debug("Initializing tracker...")

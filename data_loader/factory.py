@@ -1,23 +1,29 @@
 from data_loader.base import DataLoader
 from logger.base import Logger
 
+
 class DataLoaderFactory:
     """
     Base class for data_loader factory.
     """
-    def get(self, config: dict, logger: Logger) -> DataLoader:
-        name = config.get('data_loader', {}).get('name')
 
-        if name == 'MNIST':
+    def get(self, config: dict, logger: Logger, device) -> DataLoader:
+        name = config.get("data_loader", {}).get("name")
+
+        if name == "MNIST":
             from data_loader.MNIST_loader import MNISTLoader
 
-            return MNISTLoader(config, logger)
-        
-        if name == 'ionosphere':
+            return MNISTLoader(config, logger, device)
+
+        if name == "ionosphere":
             from data_loader.ionosphere_loader import IonosphereLoader
 
-            return IonosphereLoader(config, logger)
+            return IonosphereLoader(config, logger, device)
+
+        if name == "ionosphere_KCM_K_GH":
+            from data_loader.ionosphere_KCM_K_GH import IonosphereKCMkGHLoader
+
+            return IonosphereKCMkGHLoader(config, logger, device)
 
         else:
-            raise ValueError(
-                f"Unsupported DataLoaderFactory name: {name}")
+            raise ValueError(f"Unsupported DataLoaderFactory name: {name}")

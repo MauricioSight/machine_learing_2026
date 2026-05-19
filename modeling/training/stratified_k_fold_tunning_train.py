@@ -9,6 +9,8 @@ from sklearn.model_selection import RepeatedStratifiedKFold, StratifiedKFold
 import torch
 import pickle
 
+import wandb
+
 from modeling.structure.factory import ModelingStructureFactory
 from optimizer.factory import OptimizerFactory
 from tracker.base_tracker import BaseTracker
@@ -272,6 +274,17 @@ class StratifiedKFoldTunningTrain:
 
             fold_train_outs.append(train_out)
             fold_test_outs.append(test_out)
+
+            if "confusion_matrices" in metrics:
+                self.tracker.log_metrics(
+                    {
+                        "conf_mat": wandb.plot.confusion_matrix(
+                            probs=None,
+                            y_true=test_out[0],
+                            preds=test_out[1].cpu().numpy(),
+                        )
+                    }
+                )
 
             self.tracker.log_metrics({"fold_id": fold_id, **metrics})
             self.tracker.finish()

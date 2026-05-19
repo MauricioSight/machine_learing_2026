@@ -24,5 +24,19 @@ class MetricsFactory:
 
             return KCMKGHMetrics(config, logger, device)
 
+        if name == "bayes_multi_classifier_metrics":
+            from metrics.bayes_multi_classifier_metrics import (
+                BayesMultiClassifierMetrics,
+            )
+
+            return BayesMultiClassifierMetrics(config, logger, device)
+
+        if name == "logistic_multi_classifier_metrics":
+            from metrics.logistic_multi_classifier_metrics import (
+                LogisticMultiClassifierMetrics,
+            )
+
+            return LogisticMultiClassifierMetrics(config, logger, device)
+
         else:
             raise ValueError(f"Unsupported MetricsFactory name: {name}")
