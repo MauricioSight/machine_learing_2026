@@ -157,7 +157,9 @@ class LogisticMultiClassifierMetrics:
         y_pred = self._logits_to_predictions(logits_tensor)
 
         if len(y_pred.shape) > 1 and y_pred.shape[1] > 1:
-            y_pred = y_pred.argmax(axis=1) # Use axis=1 se já for NumPy, ou dim=1 se ainda for Tensor do PyTorch
+            y_pred = y_pred.argmax(
+                axis=1
+            )  # Use axis=1 se já for NumPy, ou dim=1 se ainda for Tensor do PyTorch
 
         results = self._compute_metrics(
             y_true_np,
@@ -165,7 +167,7 @@ class LogisticMultiClassifierMetrics:
         )
 
         # overwrite error with BCE loss
-        results["loss"] = loss
+        results["error_rate"] = loss
 
         if verbose:
 
