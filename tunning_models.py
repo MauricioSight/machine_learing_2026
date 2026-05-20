@@ -30,7 +30,7 @@ def main(config=None, X=None, y_true=None):
     """
 
     if config is None:
-        config = load_config(default_file_name="bayes_knn")
+        config = load_config(default_file_name="logistic_regression")
 
     if "run_id" not in config:
         run_id = get_run_id(

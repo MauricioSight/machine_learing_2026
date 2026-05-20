@@ -67,6 +67,7 @@ class KNNBayesian:
         y_val=None,
         verbose=True,
     ):
+        print(y)
         self.X_train = torch.from_numpy(X).to(self.device)
         self.y_train = torch.tensor(y.codes).to(self.device)
         self.classes = torch.unique(self.y_train)

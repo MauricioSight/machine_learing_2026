@@ -30,7 +30,8 @@ class IonosphereKCMkGHLoader(DataLoader):
         # 'g' = good, 'b' = bad
         y = y.map({"g": 1, "b": 0})
         y = y.to_frame(name="label")
-
+        y["label"] = y["label"].astype("category")
+        
         return X, y
 
     def __create_dataset(self):

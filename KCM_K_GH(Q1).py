@@ -2,7 +2,7 @@ import torch
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import seaborn as sns
+#import seaborn as sns
 from sklearn.metrics import silhouette_score, adjusted_rand_score, confusion_matrix
 import random
 import os
@@ -202,9 +202,9 @@ if __name__ == "__main__":
     print(f"\niii) GERANDO PLOT DA MATRIZ DE CONFUSÃO...")
     cm = confusion_matrix(y_true, final_labels)
     plt.figure(figsize=(6, 4))
-    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
-            xticklabels=[f'Cluster {i}' for i in range(c_star)],
-            yticklabels=['Bad (0)', 'Good (1)'])
+    #sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
+    #        xticklabels=[f'Cluster {i}' for i in range(c_star)],
+    #        yticklabels=['Bad (0)', 'Good (1)'])
     plt.title(f'Matriz de Confusão (Algoritmo vs A Priori) para c={c_star}')
     plt.ylabel('Partição A Priori (Real)')
     plt.xlabel('Partição do Algoritmo (Predito)')

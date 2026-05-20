@@ -37,7 +37,7 @@ class LogisticMultiClassifierMetrics:
         self.threshold = self.config.get("metrics", {}).get("threshold", 0.5)
 
         # correct loss for multilabel
-        self.criterion = nn.BCEWithLogitsLoss()
+        self.criterion = nn.CrossEntropyLoss()
 
     def _prepare_targets(self, y_true):
         """
@@ -118,18 +118,12 @@ class LogisticMultiClassifierMetrics:
         results = {
             "subset_accuracy": subset_accuracy,
             "error_rate": error_rate,
-            "micro_precision": report["micro avg"]["precision"],
-            "micro_recall": report["micro avg"]["recall"],
-            "micro_f1": report["micro avg"]["f1-score"],
             "macro_precision": report["macro avg"]["precision"],
             "macro_recall": report["macro avg"]["recall"],
             "macro_f1": report["macro avg"]["f1-score"],
             "weighted_precision": report["weighted avg"]["precision"],
             "weighted_recall": report["weighted avg"]["recall"],
             "weighted_f1": report["weighted avg"]["f1-score"],
-            "samples_precision": report["samples avg"]["precision"],
-            "samples_recall": report["samples avg"]["recall"],
-            "samples_f1": report["samples avg"]["f1-score"],
             "classification_report": report,
             "confusion_matrices": confusion_matrices,
         }
@@ -151,6 +145,9 @@ class LogisticMultiClassifierMetrics:
         logits_tensor = self._prepare_logits(y_prob)
 
         # multilabel loss
+
+        y_true_tensor = y_true_tensor.long()
+
         loss = self.criterion(
             logits_tensor,
             y_true_tensor,
@@ -158,6 +155,9 @@ class LogisticMultiClassifierMetrics:
 
         # predictions
         y_pred = self._logits_to_predictions(logits_tensor)
+
+        if len(y_pred.shape) > 1 and y_pred.shape[1] > 1:
+            y_pred = y_pred.argmax(axis=1) # Use axis=1 se já for NumPy, ou dim=1 se ainda for Tensor do PyTorch
 
         results = self._compute_metrics(
             y_true_np,
@@ -174,13 +174,6 @@ class LogisticMultiClassifierMetrics:
             self.logger.info(
                 f"Loss: {loss:.6f}"
                 f" | Subset Accuracy: {results['subset_accuracy']:.6f}"
-            )
-
-            self.logger.info(
-                f"Micro -> "
-                f"P: {results['micro_precision']:.6f}"
-                f" | R: {results['micro_recall']:.6f}"
-                f" | F1: {results['micro_f1']:.6f}"
             )
 
             self.logger.info(
@@ -245,9 +238,6 @@ class LogisticMultiClassifierMetrics:
             "loss": [],
             "subset_accuracy": [],
             "error_rate": [],
-            "micro_precision": [],
-            "micro_recall": [],
-            "micro_f1": [],
             "macro_precision": [],
             "macro_recall": [],
             "macro_f1": [],
@@ -294,8 +284,7 @@ class LogisticMultiClassifierMetrics:
                 )
 
                 self.logger.info(
-                    f"Micro F1: {metrics['micro_f1']:.6f}"
-                    f" | Macro F1: {metrics['macro_f1']:.6f}"
+                    f"Macro F1: {metrics['macro_f1']:.6f}"
                     f" | Weighted F1: {metrics['weighted_f1']:.6f}"
                 )
 
