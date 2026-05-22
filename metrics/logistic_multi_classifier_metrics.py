@@ -72,25 +72,6 @@ class LogisticMultiClassifierMetrics:
 
         return logits
 
-    def _logits_to_predictions(self, logits):
-        """
-        logits -> probabilities -> binary predictions
-        """
-
-        if isinstance(logits, torch.Tensor):
-
-            probs = torch.sigmoid(logits)
-
-            probs = probs.detach().cpu().numpy()
-
-        else:
-
-            probs = 1.0 / (1.0 + np.exp(-logits))
-
-        y_pred = (probs >= self.threshold).astype(int)
-
-        return y_pred
-
     def _compute_metrics(self, y_true, y_pred):
         """
         Compute multilabel metrics.
@@ -154,11 +135,9 @@ class LogisticMultiClassifierMetrics:
         ).item()
 
         # predictions
-        y_pred = self._logits_to_predictions(logits_tensor)
-
-        if len(y_pred.shape) > 1 and y_pred.shape[1] > 1:
-            y_pred = y_pred.argmax(
-                axis=1
+        if len(logits_tensor.shape) > 1 and logits_tensor.shape[1] > 1:
+            y_pred = (
+                logits_tensor.argmax(axis=1).cpu().numpy()
             )  # Use axis=1 se já for NumPy, ou dim=1 se ainda for Tensor do PyTorch
 
         results = self._compute_metrics(
@@ -190,13 +169,6 @@ class LogisticMultiClassifierMetrics:
                 f"P: {results['weighted_precision']:.6f}"
                 f" | R: {results['weighted_recall']:.6f}"
                 f" | F1: {results['weighted_f1']:.6f}"
-            )
-
-            self.logger.info(
-                f"Samples -> "
-                f"P: {results['samples_precision']:.6f}"
-                f" | R: {results['samples_recall']:.6f}"
-                f" | F1: {results['samples_f1']:.6f}"
             )
 
             self.logger.info("\n===== PER LABEL METRICS =====")
@@ -246,9 +218,6 @@ class LogisticMultiClassifierMetrics:
             "weighted_precision": [],
             "weighted_recall": [],
             "weighted_f1": [],
-            "samples_precision": [],
-            "samples_recall": [],
-            "samples_f1": [],
         }
 
         for fold_idx, (y_t, logits) in enumerate(zip(y_true, y_prob)):
@@ -257,12 +226,16 @@ class LogisticMultiClassifierMetrics:
 
             logits_tensor = self._prepare_logits(logits)
 
+            y_true_tensor = y_true_tensor.long()
+
             loss = self.criterion(
                 logits_tensor,
                 y_true_tensor,
             ).item()
 
-            y_pred = self._logits_to_predictions(logits_tensor)
+            y_pred = (
+                logits_tensor.argmax(axis=1).cpu().numpy()
+            )  # Use axis=1 se já for NumPy, ou dim=1 se ainda for Tensor do PyTorch
 
             metrics = self._compute_metrics(
                 y_true_np,
@@ -282,7 +255,6 @@ class LogisticMultiClassifierMetrics:
                 self.logger.info(
                     f"Loss: {loss:.6f}"
                     f" | Subset Accuracy: {metrics['subset_accuracy']:.6f}"
-                    f" | Hamming Loss: {metrics['hamming_loss']:.6f}"
                 )
 
                 self.logger.info(
