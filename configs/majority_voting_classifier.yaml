@@ -14,8 +14,8 @@ modeling:
     name: majority_voting_classifier
 
     # Logistic regression
-    input_dim: 34
-    num_classes: 2
+    input_dim: 33
+    num_classes: 3
     
     # bayes_parzen
     h: 1.0

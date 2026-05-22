@@ -17,6 +17,8 @@ from utils.experiment_io import get_run_id
 
 class IonosphereKCMkGHLoader(DataLoader):
     def load_raw(self) -> Tuple[np.ndarray, pd.DataFrame]:
+        
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         # Load dataset from OpenML
         dataset = fetch_openml(name="ionosphere", version=1, as_frame=True)
 
@@ -31,6 +33,10 @@ class IonosphereKCMkGHLoader(DataLoader):
         y = y.map({"g": 1, "b": 0})
         y = y.to_frame(name="label")
         y["label"] = y["label"].astype("category")
+
+        if torch.device.type == 'cuda':
+            X = torch.from_numpy(X).to(device)
+            y = torch.from_numpy(y).to(device)
         
         return X, y
 

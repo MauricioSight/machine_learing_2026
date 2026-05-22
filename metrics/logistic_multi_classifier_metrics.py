@@ -257,6 +257,8 @@ class LogisticMultiClassifierMetrics:
 
             logits_tensor = self._prepare_logits(logits)
 
+            y_true_tensor = y_true_tensor.long()
+
             loss = self.criterion(
                 logits_tensor,
                 y_true_tensor,
