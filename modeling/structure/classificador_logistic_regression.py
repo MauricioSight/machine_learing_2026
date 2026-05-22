@@ -119,7 +119,7 @@ class LogisticRegressionClassifier(nn.Module):
 
         x = x.float()
 
-        logits = self.linear(x)
+        logits = torch.sigmoid(self.linear(x))
 
         return logits
 
